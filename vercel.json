@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/mixer.py": {
-      "runtime": "@vercel/python"
+      "runtime": "@vercel/python@3.9.16"
     }
   }
 }
