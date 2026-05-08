@@ -397,6 +397,9 @@ function StealthTransferApp() {
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           跳数: {numHops} <span className="text-xs text-gray-500">(越多越隐秘)</span>
+          <span className="ml-2 text-xs text-blue-600">
+            预计 {numHops <= 10 ? '~30秒' : numHops <= 50 ? '~2.5分钟' : numHops <= 100 ? '~5分钟' : '~20分钟'}
+          </span>
         </label>
         <p className="text-xs text-gray-600 mb-2">多个中转钱包地址，隐藏转账路径，实现隐匿转账，确保资金的隐私。</p>
         <div className="flex gap-2">

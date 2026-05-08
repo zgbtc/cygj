@@ -30,11 +30,13 @@ FEE_CONFIG = {
 MIXING_MODES = {
     'fast': {
         'name': '快速模式',
-        'delay_range': (1, 3),  # 1-3 秒
+        'delay_range': (0.5, 2),  # 0.5-2 秒（优化速度）
         'use_crosschain': False,
         'use_tor': True,  # 可选Tor
+        'use_isolation': True,  # 启用源地址和目标地址隔离
+        'isolation_delay': 0,  # 隔离层无额外延迟
         'privacy_level': '⭐⭐⭐⭐⭐',
-        'estimated_time': '3-5 分钟',
+        'estimated_time': '20秒-5分钟',
         'fee_rate': 0.0003
     },
     'ultimate': {
@@ -42,8 +44,10 @@ MIXING_MODES = {
         'delay_range': (300, 1800),  # 5-30 分钟
         'use_crosschain': True,
         'use_tor': True,  # 必须Tor
+        'use_isolation': True,  # 启用隔离
+        'isolation_delay': 0,
         'privacy_level': '⭐⭐⭐⭐⭐⭐⭐',
-        'estimated_time': '8-50 小时',
+        'estimated_time': '45分钟-2小时',
         'fee_rate': 0.0006
     }
 }
@@ -236,7 +240,7 @@ class AdvancedMixerEngine:
         gas_level: str = 'standard'
     ) -> Dict:
         """
-        执行高级混币
+        执行高级混币（带源地址和目标地址隔离）
         
         Args:
             plan: 混币计划
@@ -256,6 +260,8 @@ class AdvancedMixerEngine:
         fees = plan['fees']
         num_hops = plan['num_hops']
         delay_range = plan['mode_config']['delay_range']
+        use_isolation = plan['mode_config'].get('use_isolation', False)
+        isolation_delay = plan['mode_config'].get('isolation_delay', 0)
         
         results = []
         
@@ -263,22 +269,83 @@ class AdvancedMixerEngine:
         logger.info(f"  总跳数: {num_hops}")
         logger.info(f"  净金额: {fees['net_amount']:.8f} BNB")
         logger.info(f"  延迟范围: {delay_range[0]}-{delay_range[1]} 秒")
+        logger.info(f"  使用隔离: {'是' if use_isolation else '否'}")
         logger.info(f"  使用 Tor: {'是' if plan['mode_config']['use_tor'] else '否'}")
         logger.info(f"  跨链混币: {'是' if plan['mode_config']['use_crosschain'] else '否'}")
         
+        # 阶段 0: 源地址隔离（如果启用）
+        if use_isolation:
+            logger.info(f"\n🔒 阶段 0: 源地址隔离")
+            
+            # 使用第一个中间地址作为隔离层
+            isolation_addr_1 = intermediate_addresses[0]['address']
+            isolation_pk_1 = intermediate_addresses[0]['private_key']
+            
+            try:
+                result = self._send_transaction(
+                    from_private_key=from_private_key,
+                    to_address=isolation_addr_1,
+                    amount=fees['net_amount'],
+                    gas_level=gas_level
+                )
+                
+                results.append({
+                    'stage': 0,
+                    'from': from_address,
+                    'to': isolation_addr_1,
+                    'amount': fees['net_amount'],
+                    'status': 'success',
+                    'tx_hash': result['tx_hash'],
+                    'purpose': 'source_isolation'
+                })
+                
+                logger.info(f"  ✅ 源地址隔离: {from_address[:10]}... → {isolation_addr_1[:10]}...")
+                logger.info(f"  🔒 链上无法直接追溯到源地址")
+                
+                # 隔离延迟
+                if isolation_delay > 0:
+                    logger.info(f"     ⏳ 隔离延迟 {isolation_delay} 秒...")
+                    time.sleep(isolation_delay)
+                
+                # 更新起始私钥和地址
+                from_private_key = isolation_pk_1
+                from_address = isolation_addr_1
+                
+            except Exception as e:
+                logger.error(f"  ❌ 源地址隔离失败: {e}")
+                results.append({
+                    'stage': 0,
+                    'from': from_address,
+                    'to': isolation_addr_1,
+                    'amount': fees['net_amount'],
+                    'status': 'failed',
+                    'error': str(e),
+                    'purpose': 'source_isolation'
+                })
+                # 如果隔离失败，继续使用原地址
+        
         # 阶段 1: 分散到多个起始地址
+        start_offset = 1 if use_isolation else 0  # 如果用了隔离，从第2个地址开始
         num_start_addresses = max(5, num_hops // 5)
         logger.info(f"\n🌱 阶段 1: 分散到 {num_start_addresses} 个起始地址")
         
         # 使用随机金额分配
+        current_balance = self.transfer_engine.get_balance(from_address)
+        gas_reserve = 0.0003
+        available_amount = current_balance - gas_reserve
+        
         start_amounts = self.generate_random_amounts(
-            fees['net_amount'],
+            available_amount,
             num_start_addresses,
             use_round_numbers=True
         )
         
         for i in range(num_start_addresses):
-            start_addr = intermediate_addresses[i]['address']
+            addr_idx = start_offset + i
+            if addr_idx >= len(intermediate_addresses):
+                break
+                
+            start_addr = intermediate_addresses[addr_idx]['address']
             amount = start_amounts[i]
             
             try:
@@ -302,7 +369,6 @@ class AdvancedMixerEngine:
                 
                 # 随机延迟
                 delay = random.uniform(*delay_range)
-                logger.info(f"     ⏳ 延迟 {delay:.1f} 秒...")
                 time.sleep(delay)
             
             except Exception as e:
@@ -393,8 +459,19 @@ class AdvancedMixerEngine:
                 })
                 active_addresses.remove(from_idx)
         
-        # 阶段 3: 汇总到目标地址
-        logger.info(f"\n💰 阶段 3: 汇总到目标地址")
+        # 阶段 3: 汇总到临时地址（如果启用隔离）或直接到目标地址
+        if use_isolation:
+            logger.info(f"\n💰 阶段 3: 汇总到临时隔离地址")
+            
+            # 使用最后一个中间地址作为目标隔离层
+            isolation_addr_2 = intermediate_addresses[-1]['address']
+            isolation_pk_2 = intermediate_addresses[-1]['private_key']
+            final_target = isolation_addr_2
+            
+            logger.info(f"  🔒 目标隔离地址: {isolation_addr_2[:10]}...")
+        else:
+            logger.info(f"\n💰 阶段 3: 汇总到目标地址")
+            final_target = to_address
         
         total_collected = 0
         
@@ -402,6 +479,10 @@ class AdvancedMixerEngine:
             addr_info = intermediate_addresses[i]
             addr = addr_info['address']
             pk = addr_info['private_key']
+            
+            # 跳过隔离地址本身
+            if use_isolation and (addr == intermediate_addresses[0]['address'] or addr == intermediate_addresses[-1]['address']):
+                continue
             
             balance = self.transfer_engine.get_balance(addr)
             gas_reserve = 0.0003
@@ -420,7 +501,7 @@ class AdvancedMixerEngine:
             try:
                 result = self._send_transaction(
                     from_private_key=pk,
-                    to_address=to_address,
+                    to_address=final_target,
                     amount=amount,
                     gas_level=gas_level
                 )
@@ -428,13 +509,13 @@ class AdvancedMixerEngine:
                 results.append({
                     'stage': 3,
                     'from': addr,
-                    'to': to_address,
+                    'to': final_target,
                     'amount': amount,
                     'status': 'success',
                     'tx_hash': result['tx_hash']
                 })
                 
-                logger.info(f"  ✅ 汇总: {addr[:10]}... → {to_address[:10]}... ({amount:.8f} BNB)")
+                logger.info(f"  ✅ 汇总: {addr[:10]}... → {final_target[:10]}... ({amount:.8f} BNB)")
                 
                 # 随机延迟
                 delay = random.uniform(*delay_range)
@@ -445,14 +526,67 @@ class AdvancedMixerEngine:
                 results.append({
                     'stage': 3,
                     'from': addr,
-                    'to': to_address,
+                    'to': final_target,
                     'amount': amount,
                     'status': 'failed',
                     'error': str(e)
                 })
         
-        # 阶段 4: 转服务费
-        logger.info("\n💳 阶段 4: 转服务费")
+        # 阶段 4: 目标地址隔离（如果启用）
+        if use_isolation:
+            logger.info(f"\n🔒 阶段 4: 目标地址隔离")
+            
+            isolation_addr_2 = intermediate_addresses[-1]['address']
+            isolation_pk_2 = intermediate_addresses[-1]['private_key']
+            
+            # 获取隔离地址的余额
+            balance = self.transfer_engine.get_balance(isolation_addr_2)
+            gas_reserve = 0.0003
+            
+            if balance > gas_reserve:
+                amount = balance - gas_reserve
+                amount = round(amount, 8)
+                
+                try:
+                    result = self._send_transaction(
+                        from_private_key=isolation_pk_2,
+                        to_address=to_address,
+                        amount=amount,
+                        gas_level=gas_level
+                    )
+                    
+                    results.append({
+                        'stage': 4,
+                        'from': isolation_addr_2,
+                        'to': to_address,
+                        'amount': amount,
+                        'status': 'success',
+                        'tx_hash': result['tx_hash'],
+                        'purpose': 'target_isolation'
+                    })
+                    
+                    logger.info(f"  ✅ 目标地址隔离: {isolation_addr_2[:10]}... → {to_address[:10]}...")
+                    logger.info(f"  🔒 链上无法直接追溯到目标地址")
+                    
+                    # 隔离延迟
+                    if isolation_delay > 0:
+                        logger.info(f"     ⏳ 隔离延迟 {isolation_delay} 秒...")
+                        time.sleep(isolation_delay)
+                    
+                except Exception as e:
+                    logger.error(f"  ❌ 目标地址隔离失败: {e}")
+                    results.append({
+                        'stage': 4,
+                        'from': isolation_addr_2,
+                        'to': to_address,
+                        'amount': amount,
+                        'status': 'failed',
+                        'error': str(e),
+                        'purpose': 'target_isolation'
+                    })
+        
+        # 阶段 5: 转服务费
+        logger.info("\n💳 阶段 5: 转服务费")
         
         service_fee = fees['service_fee']
         fee_address = FEE_CONFIG['fee_address']
