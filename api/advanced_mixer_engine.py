@@ -33,23 +33,31 @@ MIXING_MODES = {
         'use_crosschain': False,
         'use_tor': False,
         'privacy_level': '⭐⭐⭐',
-        'estimated_time': '30 分钟'
+        'estimated_time': '3-5 分钟'
+    },
+    'standard': {
+        'name': '标准模式',
+        'delay_range': (30, 60),  # 30-60 秒
+        'use_crosschain': False,
+        'use_tor': False,
+        'privacy_level': '⭐⭐⭐⭐',
+        'estimated_time': '1-2 小时'
     },
     'privacy': {
         'name': '隐私模式',
-        'delay_range': (300, 1800),  # 5-30 分钟
+        'delay_range': (60, 300),  # 1-5 分钟
         'use_crosschain': False,
         'use_tor': True,
         'privacy_level': '⭐⭐⭐⭐⭐',
-        'estimated_time': '1-2 天'
+        'estimated_time': '2-8 小时'
     },
     'ultimate': {
-        'name': '极致隐私模式',
-        'delay_range': (1800, 7200),  # 30-120 分钟
+        'name': '极致隐私',
+        'delay_range': (300, 1800),  # 5-30 分钟
         'use_crosschain': True,
         'use_tor': True,
         'privacy_level': '⭐⭐⭐⭐⭐⭐⭐',
-        'estimated_time': '3-7 天'
+        'estimated_time': '8-50 小时'
     }
 }
 

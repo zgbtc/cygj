@@ -109,23 +109,31 @@ const MIXING_MODES = {
     name: "快速模式",
     icon: "⚡",
     privacy: "⭐⭐⭐",
-    time: "30 分钟",
+    time: "3-5 分钟",
     description: "1-3秒延迟，快速完成",
     color: "blue"
+  },
+  standard: {
+    name: "标准模式",
+    icon: "🔷",
+    privacy: "⭐⭐⭐⭐",
+    time: "1-2 小时",
+    description: "30-60秒延迟，平衡速度和隐私",
+    color: "green"
   },
   privacy: {
     name: "隐私模式",
     icon: "🔒",
     privacy: "⭐⭐⭐⭐⭐",
-    time: "1-2 天",
-    description: "5-30分钟延迟 + Tor",
+    time: "2-8 小时",
+    description: "1-5分钟延迟 + Tor",
     color: "purple"
   },
   ultimate: {
     name: "极致隐私",
     icon: "🛡️",
     privacy: "⭐⭐⭐⭐⭐⭐⭐",
-    time: "3-7 天",
+    time: "8-50 小时",
     description: "跨链混币 + Tor + 长延迟",
     color: "red"
   }
@@ -242,6 +250,7 @@ function StealthTransferApp() {
         {/* Mode Info */}
         <div className={`mt-3 p-3 rounded-lg text-xs ${
           mode === 'fast' ? 'bg-blue-50 border border-blue-200' :
+          mode === 'standard' ? 'bg-green-50 border border-green-200' :
           mode === 'privacy' ? 'bg-purple-50 border border-purple-200' :
           'bg-red-50 border border-red-200'
         }`}>
@@ -252,9 +261,10 @@ function StealthTransferApp() {
                 {MIXING_MODES[mode as keyof typeof MIXING_MODES].name}
               </p>
               <p className="text-gray-700">
-                {mode === 'fast' && '适合快速测试，隐私性中等'}
-                {mode === 'privacy' && '使用 Tor 代理 + 长时间延迟，隐私性高'}
-                {mode === 'ultimate' && '跨链混币 + Tor + 超长延迟，隐私性极高，适合大额资金'}
+                {mode === 'fast' && '适合快速测试，3-5分钟完成'}
+                {mode === 'standard' && '平衡速度和隐私，1-2小时完成'}
+                {mode === 'privacy' && '使用 Tor 代理 + 长时间延迟，2-8小时完成'}
+                {mode === 'ultimate' && '跨链混币 + Tor + 超长延迟，8-50小时完成，适合大额资金'}
               </p>
             </div>
           </div>
