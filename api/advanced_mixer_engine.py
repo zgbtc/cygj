@@ -72,8 +72,13 @@ class AdvancedMixerEngine:
         
         # 初始化跨链桥接（如果需要）
         if self.mode_config['use_crosschain']:
-            self.bridge = CrossChainBridge(use_tor=self.mode_config['use_tor'])
-            logger.info(f"🌉 跨链模式已启用")
+            try:
+                from lifi_bridge import get_lifi_bridge
+                self.bridge = get_lifi_bridge(use_proxy=use_proxy)
+                logger.info(f"🌉 跨链模式已启用（LiFi）")
+            except Exception as e:
+                logger.warning(f"LiFi桥接初始化失败: {e}")
+                self.bridge = None
         else:
             self.bridge = None
         
