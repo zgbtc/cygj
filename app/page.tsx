@@ -415,9 +415,8 @@ function StealthTransferApp() {
             <div>
               <p className="text-gray-600 text-xs">跨链费用</p>
               <p className="font-semibold text-orange-600">
-                {MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0} BNB
+                ~{MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0} BNB
               </p>
-              <p className="text-xs text-gray-500">3次跨链</p>
             </div>
           )}
           <div>
