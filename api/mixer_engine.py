@@ -190,47 +190,67 @@ class MixerEngine:
         logger.info(f"\n总跳数: {num_hops}")
         logger.info(f"净金额: {fees['net_amount']:.8f} BNB")
         
-        # 第一步：从源地址转全部净金额到第一个中间地址
-        logger.info("\n开始线性转账...")
+        # 第一步：从源地址分散到多个起始地址（约 20% 的地址）
+        num_start_addresses = max(3, num_hops // 5)  # 至少 3 个起始地址
+        logger.info(f"\n第 1 步：分散到 {num_start_addresses} 个起始地址")
         
-        first_addr = intermediate_addresses[0]['address']
+        amount_per_start = fees['net_amount'] / num_start_addresses
         
-        try:
-            result = self._send_transaction(
-                from_private_key=from_private_key,
-                to_address=first_addr,
-                amount=fees['net_amount'],  # 转全部净金额
-                gas_level=gas_level
-            )
+        for i in range(num_start_addresses):
+            start_addr = intermediate_addresses[i]['address']
             
-            results.append({
-                'hop': 1,
-                'from': from_address,
-                'to': first_addr,
-                'amount': fees['net_amount'],
-                'status': 'success',
-                'tx_hash': result['tx_hash']
-            })
+            # 添加随机性
+            amount = amount_per_start * random.uniform(0.9, 1.1)
+            amount = round(amount, 8)
             
-            logger.info(f"跳 1/{num_hops}: {from_address[:10]}... → {first_addr[:10]}... ({fees['net_amount']:.8f} BNB)")
-            time.sleep(random.uniform(*delay_range))
+            try:
+                result = self._send_transaction(
+                    from_private_key=from_private_key,
+                    to_address=start_addr,
+                    amount=amount,
+                    gas_level=gas_level
+                )
+                
+                results.append({
+                    'step': 1,
+                    'from': from_address,
+                    'to': start_addr,
+                    'amount': amount,
+                    'status': 'success',
+                    'tx_hash': result['tx_hash']
+                })
+                
+                logger.info(f"  分散 {i+1}/{num_start_addresses}: → {start_addr[:10]}... ({amount:.8f} BNB)")
+                time.sleep(random.uniform(*delay_range))
             
-        except Exception as e:
-            logger.error(f"跳 1 失败: {e}")
-            results.append({
-                'hop': 1,
-                'from': from_address,
-                'to': first_addr,
-                'amount': fees['net_amount'],
-                'status': 'failed',
-                'error': str(e)
-            })
+            except Exception as e:
+                logger.error(f"  分散 {i+1} 失败: {e}")
+                results.append({
+                    'step': 1,
+                    'from': from_address,
+                    'to': start_addr,
+                    'amount': amount,
+                    'status': 'failed',
+                    'error': str(e)
+                })
         
-        # 第二步：在中间地址之间线性转账
-        for i in range(len(transfer_path) - 1):
-            hop_num = i + 2
-            from_idx = transfer_path[i]
-            to_idx = transfer_path[i + 1]
+        # 第二步：中间地址之间随机交叉跳转
+        logger.info(f"\n第 2 步：中间地址交叉跳转")
+        
+        # 计算需要多少次跳转才能达到 num_hops
+        remaining_hops = num_hops - num_start_addresses
+        
+        # 从起始地址开始，随机选择目标地址进行跳转
+        active_addresses = list(range(num_start_addresses))  # 有余额的地址索引
+        hop_count = 0
+        
+        while hop_count < remaining_hops and active_addresses:
+            # 随机选择一个有余额的地址
+            from_idx = random.choice(active_addresses)
+            
+            # 随机选择一个目标地址（不能是自己）
+            available_targets = [i for i in range(num_hops) if i != from_idx]
+            to_idx = random.choice(available_targets)
             
             from_addr_info = intermediate_addresses[from_idx]
             to_addr_info = intermediate_addresses[to_idx]
@@ -246,7 +266,8 @@ class MixerEngine:
             gas_reserve = 0.0003
             
             if balance <= gas_reserve:
-                logger.warning(f"跳 {hop_num}/{num_hops}: {from_addr[:10]}... 余额不足，跳过")
+                # 余额不足，从活跃列表移除
+                active_addresses.remove(from_idx)
                 continue
             
             # 转账金额
@@ -254,7 +275,7 @@ class MixerEngine:
             amount = round(amount, 8)
             
             if amount <= 0:
-                logger.warning(f"跳 {hop_num}/{num_hops}: 金额为 0，跳过")
+                active_addresses.remove(from_idx)
                 continue
             
             try:
@@ -266,7 +287,8 @@ class MixerEngine:
                 )
                 
                 results.append({
-                    'hop': hop_num,
+                    'step': 2,
+                    'hop': hop_count + 1,
                     'from': from_addr,
                     'to': to_addr,
                     'amount': amount,
@@ -274,61 +296,79 @@ class MixerEngine:
                     'tx_hash': result['tx_hash']
                 })
                 
-                logger.info(f"跳 {hop_num}/{num_hops}: {from_addr[:10]}... → {to_addr[:10]}... ({amount:.8f} BNB)")
+                logger.info(f"  跳转 {hop_count + 1}/{remaining_hops}: {from_addr[:10]}... → {to_addr[:10]}... ({amount:.8f} BNB)")
+                
+                # 更新活跃地址列表
+                active_addresses.remove(from_idx)
+                if to_idx not in active_addresses:
+                    active_addresses.append(to_idx)
+                
+                hop_count += 1
                 time.sleep(random.uniform(*delay_range))
                 
             except Exception as e:
-                logger.error(f"跳 {hop_num}/{num_hops} 失败: {e}")
+                logger.error(f"  跳转 {hop_count + 1} 失败: {e}")
                 results.append({
-                    'hop': hop_num,
+                    'step': 2,
+                    'hop': hop_count + 1,
                     'from': from_addr,
                     'to': to_addr,
                     'amount': amount,
                     'status': 'failed',
                     'error': str(e)
                 })
+                active_addresses.remove(from_idx)
         
-        # 第三步：从最后一个中间地址转到目标地址
-        logger.info("\n汇总到目标地址...")
-        
-        last_addr_info = intermediate_addresses[-1]
-        last_addr = last_addr_info['address']
-        last_pk = last_addr_info['private_key']
-        
-        balance = self.transfer_engine.get_balance(last_addr)
-        gas_reserve = 0.0003
+        # 第三步：汇总到目标地址
+        logger.info(f"\n第 3 步：汇总到目标地址")
         
         total_collected = 0
         
-        if balance > gas_reserve:
+        # 收集所有有余额的地址
+        for i in range(num_hops):
+            addr_info = intermediate_addresses[i]
+            addr = addr_info['address']
+            pk = addr_info['private_key']
+            
+            balance = self.transfer_engine.get_balance(addr)
+            gas_reserve = 0.0003
+            
+            if balance <= gas_reserve:
+                continue
+            
             amount = balance - gas_reserve
             amount = round(amount, 8)
-            total_collected = amount
+            
+            if amount <= 0:
+                continue
+            
+            total_collected += amount
             
             try:
                 result = self._send_transaction(
-                    from_private_key=last_pk,
+                    from_private_key=pk,
                     to_address=to_address,
                     amount=amount,
                     gas_level=gas_level
                 )
                 
                 results.append({
-                    'hop': num_hops,
-                    'from': last_addr,
+                    'step': 3,
+                    'from': addr,
                     'to': to_address,
                     'amount': amount,
                     'status': 'success',
                     'tx_hash': result['tx_hash']
                 })
                 
-                logger.info(f"最终汇总: {last_addr[:10]}... → {to_address[:10]}... ({amount:.8f} BNB)")
+                logger.info(f"  汇总: {addr[:10]}... → {to_address[:10]}... ({amount:.8f} BNB)")
+                time.sleep(random.uniform(*delay_range))
                 
             except Exception as e:
-                logger.error(f"最终汇总失败: {e}")
+                logger.error(f"  汇总失败: {e}")
                 results.append({
-                    'hop': num_hops,
-                    'from': last_addr,
+                    'step': 3,
+                    'from': addr,
                     'to': to_address,
                     'amount': amount,
                     'status': 'failed',
