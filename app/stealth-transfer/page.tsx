@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { API_URL } from "@/lib/config";
+import { Shield, Wallet, ArrowRightLeft, TrendingUp, Fuel, Image, Globe } from "lucide-react";
 
 export default function StealthTransferPage() {
   const [lang, setLang] = useState<"en" | "zh">("en");
@@ -245,17 +246,13 @@ export default function StealthTransferPage() {
               </svg>
               <span className="font-semibold">{t[lang].backHome}</span>
             </Link>
-            <div className="flex items-center gap-4">
-              <div className="text-xl font-bold text-gray-800">
-                Crypto Tools Hub
-              </div>
-              <button
-                onClick={() => setLang(lang === "en" ? "zh" : "en")}
-                className="px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium transition"
-              >
-                {lang === "en" ? "中文" : "EN"}
-              </button>
-            </div>
+            <button
+              onClick={() => setLang(lang === "en" ? "zh" : "en")}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium transition"
+            >
+              <Globe className="w-4 h-4" />
+              {lang === "en" ? "中文" : "EN"}
+            </button>
           </div>
         </nav>
       </header>
@@ -266,7 +263,9 @@ export default function StealthTransferPage() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-lg p-6 sticky top-8">
               <div className="text-center mb-6">
-                <div className="text-6xl mb-4">🎭</div>
+                <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center">
+                  <Shield className="w-12 h-12 text-white" />
+                </div>
                 <h1 className="text-2xl font-bold mb-2">{t[lang].title}</h1>
                 <p className="text-gray-600 text-sm">{t[lang].subtitle}</p>
               </div>
@@ -285,22 +284,28 @@ export default function StealthTransferPage() {
               <div className="border-t pt-4 mb-4">
                 <h3 className="font-semibold mb-3 text-sm">{t[lang].howItWorks}</h3>
                 <div className="space-y-3 text-xs">
-                  <div className="flex items-start">
-                    <div className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold mr-2 flex-shrink-0 text-xs">1</div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Wallet className="w-4 h-4 text-white" />
+                    </div>
                     <div>
                       <p className="font-medium">{t[lang].step1Title}</p>
                       <p className="text-gray-500">{t[lang].step1Desc}</p>
                     </div>
                   </div>
-                  <div className="flex items-start">
-                    <div className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold mr-2 flex-shrink-0 text-xs">2</div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <ArrowRightLeft className="w-4 h-4 text-white" />
+                    </div>
                     <div>
                       <p className="font-medium">{t[lang].step2Title}</p>
                       <p className="text-gray-500">{t[lang].step2Desc}</p>
                     </div>
                   </div>
-                  <div className="flex items-start">
-                    <div className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold mr-2 flex-shrink-0 text-xs">3</div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <TrendingUp className="w-4 h-4 text-white" />
+                    </div>
                     <div>
                       <p className="font-medium">{t[lang].step3Title}</p>
                       <p className="text-gray-500">{t[lang].step3Desc}</p>
@@ -378,24 +383,30 @@ export default function StealthTransferPage() {
                   <button
                     type="button"
                     onClick={() => setInputType("private_key")}
-                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
+                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
                       inputType === "private_key"
                         ? "bg-purple-600 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    🔑 {t[lang].privateKey}
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    {t[lang].privateKey}
                   </button>
                   <button
                     type="button"
                     onClick={() => setInputType("mnemonic")}
-                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
+                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
                       inputType === "mnemonic"
                         ? "bg-purple-600 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    📝 {t[lang].mnemonic}
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {t[lang].mnemonic}
                   </button>
                 </div>
               </div>
@@ -535,13 +546,23 @@ export default function StealthTransferPage() {
               <button
                 onClick={handleExecute}
                 disabled={isLoading || (!privateKey && !mnemonic) || !toAddress || !amount}
-                className={`w-full py-4 rounded-lg font-semibold text-lg transition ${
+                className={`w-full py-4 rounded-lg font-semibold text-lg transition flex items-center justify-center gap-2 ${
                   isLoading || (!privateKey && !mnemonic) || !toAddress || !amount
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-purple-600 text-white hover:bg-purple-700"
                 }`}
               >
-                {isLoading ? t[lang].executing : t[lang].executeButton}
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    {t[lang].executing}
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-5 h-5" />
+                    {t[lang].executeButton}
+                  </>
+                )}
               </button>
 
               {/* Progress Display */}
