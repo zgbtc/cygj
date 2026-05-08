@@ -7,9 +7,3 @@
 
 [build.environment]
   NODE_VERSION = "20"
-
-# 重定向规则
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
