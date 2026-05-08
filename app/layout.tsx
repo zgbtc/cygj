@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CYGJ - 鬼魅多跳混币器 | 极致隐私保护",
-  description: "唯一无法追踪的混币器，N次交叉转账跨链100%隐藏资金路径，支持Tor网络和跨链混币，安全保护隐私",
+  title: "CYGJ - 鬼魅无影混币引擎 | 极致隐私保护",
+  description: "唯一无法追踪的混币器，N次交叉转账多链100%隐藏资金路径，IP无法追踪，绝对安全保护隐私",
   icons: {
     icon: '/logo.png',
   },

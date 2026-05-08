@@ -126,7 +126,7 @@ export default function StealthTransferPage() {
             <div className="bg-white rounded-xl shadow-lg p-6 sticky top-8">
               <div className="text-center mb-6">
                 <div className="text-6xl mb-4">🎭</div>
-                <h1 className="text-2xl font-bold mb-2">鬼魅多跳混币器</h1>
+                <h1 className="text-2xl font-bold mb-2">鬼魅无影混币引擎</h1>
                 <p className="text-gray-600 text-sm">唯一无法追踪的混币器</p>
               </div>
 
@@ -205,7 +205,7 @@ export default function StealthTransferPage() {
           {/* Right Panel - Application */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold mb-6">鬼魅多跳混币器</h2>
+              <h2 className="text-xl font-bold mb-6">鬼魅无影混币引擎</h2>
               
               {/* Chain Selection */}
               <div className="mb-6">

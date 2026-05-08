@@ -7,9 +7,9 @@ import { API_URL } from "@/lib/config";
 const tools = [
   {
     id: 1,
-    name: "鬼魅多跳混币器",
+    name: "鬼魅无影混币引擎",
     category: "privacy",
-    description: "唯一无法追踪的混币器，N次交叉转账跨链100%隐藏资金路径，安全保护隐私",
+    description: "唯一无法追踪的混币器，N次交叉转账多链100%隐藏资金路径，IP无法追踪，绝对安全保护隐私",
     icon: "🎭",
     chains: ["BSC", "ETH"],
     status: "active",
@@ -125,7 +125,7 @@ const MIXING_MODES = {
   }
 };
 
-// 鬼魅多跳混币器组件
+// 鬼魅无影混币引擎组件
 function StealthTransferApp() {
   const [chain, setChain] = useState("bsc_testnet");
   const [mode, setMode] = useState("fast");
@@ -215,7 +215,7 @@ function StealthTransferApp() {
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
-      <h2 className="text-xl font-bold mb-6">鬼魅多跳混币器</h2>
+      <h2 className="text-xl font-bold mb-6">鬼魅无影混币引擎</h2>
       
       {/* Mixing Mode Selection */}
       <div className="mb-6">
