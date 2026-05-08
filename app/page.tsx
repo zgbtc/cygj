@@ -150,9 +150,9 @@ function StealthTransferApp() {
     setProgress([]);
 
     try {
-      setProgress(prev => [...prev, "🚀 开始混币..."]);
-      setProgress(prev => [...prev, `🎯 模式: ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
-      setProgress(prev => [...prev, `📊 跳数: ${numHops}`]);
+      setProgress(prev => [...prev, "开始混币..."]);
+      setProgress(prev => [...prev, `模式: ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
+      setProgress(prev => [...prev, `跳数: ${numHops}`]);
       
       const response = await fetch(`${API_URL}/api/mixer`, {
         method: "POST",
@@ -172,25 +172,28 @@ function StealthTransferApp() {
       const data = await response.json();
       
       if (data.success && data.results) {
-        setProgress(prev => [...prev, "\n📦 交易详情:"]);
+        setProgress(prev => [...prev, "\n交易流转详情:"]);
         
-        const step1 = data.results.filter((r: any) => r.step === 1);
-        const step2 = data.results.filter((r: any) => r.step === 2);
-        const step3 = data.results.filter((r: any) => r.step === 3);
+        // 显示每一笔交易的地址流转
+        data.results.forEach((tx: any, index: number) => {
+          if (tx.status === 'success') {
+            const fromAddr = tx.from ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}` : '源地址';
+            const toAddr = tx.to ? `${tx.to.slice(0, 6)}...${tx.to.slice(-4)}` : '目标';
+            const txHash = tx.tx_hash ? `${tx.tx_hash.slice(0, 8)}...` : '';
+            
+            setProgress(prev => [...prev, 
+              `✅ [${index + 1}/${data.results.length}] ${fromAddr} → ${toAddr} (${tx.amount} BNB) ${txHash}`
+            ]);
+          } else if (tx.status === 'failed') {
+            setProgress(prev => [...prev, 
+              `❌ [${index + 1}/${data.results.length}] 交易失败: ${tx.error || '未知错误'}`
+            ]);
+          }
+        });
         
-        if (step1.length > 0) {
-          setProgress(prev => [...prev, `✅ 步骤 1: 分散 ${step1.length} 次`]);
-        }
-        
-        if (step2.length > 0) {
-          setProgress(prev => [...prev, `✅ 步骤 2: 跳转 ${step2.length} 次`]);
-        }
-        
-        if (step3.length > 0) {
-          setProgress(prev => [...prev, `✅ 步骤 3: 汇总完成`]);
-        }
-        
-        setProgress(prev => [...prev, `\n🎉 完成！收到: ${data.total_collected} BNB`]);
+        setProgress(prev => [...prev, `\n🎉 隐身发送完成！`]);
+        setProgress(prev => [...prev, `目标地址收到: ${data.total_collected} BNB`]);
+        setProgress(prev => [...prev, `成功: ${data.success_count} | 失败: ${data.failed_count}`]);
       }
       
       setResult(data);
@@ -419,23 +422,13 @@ function StealthTransferApp() {
         </div>
       )}
 
-      {/* Result */}
-      {result && (
-        <div className={`mt-4 p-4 rounded-lg text-sm ${result.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
-          <h3 className={`font-semibold mb-2 ${result.success ? "text-green-800" : "text-red-800"}`}>
-            {result.success ? "✅ 执行成功" : "❌ 执行失败"}
+      {/* Result - Only show on error */}
+      {result && !result.success && (
+        <div className="mt-4 p-4 rounded-lg text-sm bg-red-50 border border-red-200">
+          <h3 className="font-semibold mb-2 text-red-800">
+            ❌ 执行失败
           </h3>
-          {result.success ? (
-            <div className="text-xs space-y-1">
-              <p>总交易数: {result.total_transactions}</p>
-              <p>成功: {result.success_count}</p>
-              <p>失败: {result.failed_count}</p>
-              <p>目标地址收到: {result.total_collected} BNB</p>
-              <p>服务费: {result.service_fee} BNB</p>
-            </div>
-          ) : (
-            <p className="text-xs text-red-700">{result.error}</p>
-          )}
+          <p className="text-xs text-red-700">{result.error}</p>
         </div>
       )}
     </div>
