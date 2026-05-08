@@ -244,7 +244,7 @@ function StealthTransferApp() {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           跳数: {numHops}
         </label>
-        <div className="flex gap-2 mb-2">
+        <div className="flex gap-2">
           {[10, 50, 100, 500, 1000].map((num) => (
             <button
               key={num}
@@ -258,49 +258,25 @@ function StealthTransferApp() {
               {num}
             </button>
           ))}
+          <input
+            type="number"
+            min="10"
+            max="100000"
+            step="1"
+            value={numHops}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '') {
+                setNumHops(10000);
+              } else {
+                setNumHops(Math.max(10, Math.min(100000, parseInt(val))));
+              }
+            }}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+            placeholder="自定义"
+          />
         </div>
-        <input
-          type="number"
-          min="10"
-          max="10000"
-          step="1"
-          value={numHops}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === '') {
-              setNumHops(10);
-            } else {
-              setNumHops(Math.max(10, Math.min(10000, parseInt(val))));
-            }
-          }}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm mb-2"
-          placeholder="跳数越多，隐私性越强，但费用也越高"
-        />
-        <input
-          type="range"
-          min="10"
-          max="1000"
-          step="10"
-          value={numHops}
-          onChange={(e) => setNumHops(parseInt(e.target.value))}
-          className="w-full"
-        />
       </div>
-
-      {/* Mnemonic (Optional) */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          助记词（可选）
-        </label>
-        <input
-          type="text"
-          value={mnemonic}
-          onChange={(e) => setMnemonic(e.target.value)}
-          placeholder="留空自动生成"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-        />
-      </div>
-
       {/* Fee Estimate */}
       <div className="bg-gray-50 p-4 rounded-lg mb-4">
         <div className="grid grid-cols-2 gap-3 text-sm">
@@ -378,13 +354,6 @@ function StealthTransferApp() {
           )}
         </div>
       )}
-
-      {/* Warning */}
-      <div className="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-3">
-        <p className="text-xs text-yellow-700">
-          <strong>提示：</strong> 请妥善保管私钥，建议先在测试网测试
-        </p>
-      </div>
     </div>
   );
 }

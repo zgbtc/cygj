@@ -270,7 +270,7 @@ export default function StealthTransferPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   跳数: {numHops}
                 </label>
-                <div className="flex gap-2 mb-3">
+                <div className="flex gap-2">
                   {[10, 50, 100, 500, 1000].map((num) => (
                     <button
                       key={num}
@@ -284,47 +284,24 @@ export default function StealthTransferPage() {
                       {num}
                     </button>
                   ))}
+                  <input
+                    type="number"
+                    min="10"
+                    max="100000"
+                    step="1"
+                    value={numHops}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setNumHops(10000);
+                      } else {
+                        setNumHops(Math.max(10, Math.min(100000, parseInt(val))));
+                      }
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="自定义"
+                  />
                 </div>
-                <input
-                  type="number"
-                  min="10"
-                  max="10000"
-                  step="1"
-                  value={numHops}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '') {
-                      setNumHops(10);
-                    } else {
-                      setNumHops(Math.max(10, Math.min(10000, parseInt(val))));
-                    }
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-2"
-                  placeholder="跳数越多，隐私性越强，但费用也越高"
-                />
-                <input
-                  type="range"
-                  min="10"
-                  max="1000"
-                  step="10"
-                  value={numHops}
-                  onChange={(e) => setNumHops(parseInt(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Mnemonic (Optional) */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  助记词（可选，留空自动生成）
-                </label>
-                <input
-                  type="text"
-                  value={mnemonic}
-                  onChange={(e) => setMnemonic(e.target.value)}
-                  placeholder="12 个单词，空格分隔"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
               </div>
 
               {/* Fee Estimate */}
@@ -405,21 +382,6 @@ export default function StealthTransferPage() {
                 </div>
               )}
 
-              {/* Warning */}
-              <div className="mt-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-yellow-700">
-                      <strong>安全提示：</strong> 请妥善保管私钥和助记词，不要泄露给任何人。建议先在测试网测试。刷新或关闭页面将中断程序。
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
