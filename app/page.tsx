@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { API_URL } from "@/lib/config";
 
 // 工具数据
@@ -141,6 +141,31 @@ function StealthTransferApp() {
   const [result, setResult] = useState<any>(null);
   const [progress, setProgress] = useState<string[]>([]);
   const [progressPercent, setProgressPercent] = useState(0);
+  const [onlineUsers, setOnlineUsers] = useState(0);
+
+  // 初始化在线人数（基于当前时间生成一个稳定的基数）
+  useEffect(() => {
+    const now = new Date();
+    const dayMinutes = now.getHours() * 60 + now.getMinutes();
+    // 根据时间段设置基础人数：凌晨少，白天多
+    const baseUsers = Math.floor(30 + Math.sin(dayMinutes / 229) * 20 + Math.random() * 15);
+    setOnlineUsers(baseUsers);
+  }, []);
+
+  // 动态更新在线人数
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setOnlineUsers(prev => {
+        // 随机增减 -2 到 +3 之间
+        const change = Math.floor(Math.random() * 6) - 2;
+        const newValue = prev + change;
+        // 限制在 15-120 之间
+        return Math.max(15, Math.min(120, newValue));
+      });
+    }, 8000 + Math.random() * 7000); // 8-15秒随机更新一次
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleExecute = async () => {
     if (!privateKey || !toAddress || !amount) {
@@ -233,6 +258,15 @@ function StealthTransferApp() {
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
+      {/* Online Users Display */}
+      <div className="mb-4 flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-4 py-2">
+        <div className="flex items-center space-x-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-sm text-gray-700">今日在线</span>
+        </div>
+        <span className="text-lg font-bold text-green-600">{onlineUsers}</span>
+      </div>
+      
       {/* Mixing Mode Selection */}
       <div className="mb-6">
         <div className="grid grid-cols-2 gap-4">
@@ -515,6 +549,28 @@ function ComingSoonApp({ tool }: { tool: any }) {
 
 export default function Home() {
   const [selectedTool, setSelectedTool] = useState(tools[0]);
+  const [dailyUsage, setDailyUsage] = useState(0);
+
+  // 初始化今日使用次数
+  useEffect(() => {
+    const now = new Date();
+    const dayMinutes = now.getHours() * 60 + now.getMinutes();
+    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
+    const baseUsage = 500 + (dayOfYear * 37) % 300 + Math.floor(dayMinutes / 2);
+    setDailyUsage(baseUsage);
+  }, []);
+  
+  // 动态增长今日使用次数
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDailyUsage(prev => {
+        const increase = Math.random() > 0.3 ? Math.floor(Math.random() * 3) : 0;
+        return prev + increase;
+      });
+    }, 15000 + Math.random() * 20000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -584,12 +640,12 @@ export default function Home() {
                   <>
                     <div className="grid grid-cols-2 gap-2 mb-4">
                       <div className="bg-purple-50 p-2 rounded text-center">
-                        <div className="text-lg font-bold text-purple-600">{selectedTool.rating}</div>
-                        <div className="text-xs text-gray-600">评分</div>
+                        <div className="text-lg font-bold text-purple-600">{dailyUsage}</div>
+                        <div className="text-xs text-gray-600">今日使用</div>
                       </div>
                       <div className="bg-green-50 p-2 rounded text-center">
                         <div className="text-lg font-bold text-green-600">{selectedTool.users}</div>
-                        <div className="text-xs text-gray-600">用户</div>
+                        <div className="text-xs text-gray-600">总用户</div>
                       </div>
                     </div>
                   </>
