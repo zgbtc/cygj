@@ -346,7 +346,7 @@ function StealthTransferApp() {
           onChange={(e) => setChain(e.target.value)}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
         >
-          <option value="bsc">BSC Mainnet</option>
+          <option value="bsc">BSC</option>
           <option value="eth">Ethereum</option>
         </select>
       </div>
@@ -449,9 +449,6 @@ function StealthTransferApp() {
                 ? (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100).toFixed(4)
                 : (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)).toFixed(4)} BNB
             </p>
-            {mode === 'ultimate' && (
-              <p className="text-xs text-gray-500">转账金额的 4.9%</p>
-            )}
           </div>
           <div>
             <p className="text-gray-600 text-xs">预估 Gas</p>
