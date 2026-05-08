@@ -291,7 +291,7 @@ function StealthTransferApp() {
         {mode === 'ultimate' && (
           <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
             <p className="text-sm text-purple-900 leading-relaxed">
-              <span className="font-semibold">跨链路径：BSC → Polygon → Arbitrum → BSC</span> · 自动启用代理池隐藏IP · 适合大额转账（&gt;0.5 BNB） · 预计耗时约45分钟
+              适合大额转账，N次交叉转账+多链路径+100%隐藏资金路径，IP无法追踪，绝对安全保护隐私
             </p>
           </div>
         )}
