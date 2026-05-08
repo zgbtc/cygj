@@ -130,7 +130,7 @@ function StealthTransferApp() {
     setResult(null);
 
     try {
-      const response = await fetch(`${API_URL}/api/mixer/execute`, {
+      const response = await fetch(`${API_URL}/api/mixer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
