@@ -221,6 +221,11 @@ export default function StealthTransferPage() {
                   <option value="bsc">BSC Mainnet</option>
                   <option value="eth">Ethereum</option>
                 </select>
+                {chain === 'bsc' && (
+                  <p className="text-xs text-orange-600 mt-1">
+                    ⚠️ 主网建议使用 ≥0.1 BNB，避免 Gas 费用消耗完所有金额
+                  </p>
+                )}
               </div>
 
               {/* Private Key */}
