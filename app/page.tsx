@@ -127,7 +127,7 @@ const MIXING_MODES = {
 
 // 鬼魅无影混币引擎组件
 function StealthTransferApp() {
-  const [chain, setChain] = useState("bsc_testnet");
+  const [chain, setChain] = useState("bsc");
   const [mode, setMode] = useState("fast");
   const [privateKey, setPrivateKey] = useState("");
   const [toAddress, setToAddress] = useState("");
@@ -138,6 +138,7 @@ function StealthTransferApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [progress, setProgress] = useState<string[]>([]);
+  const [progressPercent, setProgressPercent] = useState(0);
 
   const handleExecute = async () => {
     if (!privateKey || !toAddress || !amount) {
@@ -148,10 +149,13 @@ function StealthTransferApp() {
     setIsLoading(true);
     setResult(null);
     setProgress([]);
+    setProgressPercent(0);
 
     try {
       setProgress(prev => [...prev, "开始混币..."]);
+      setProgressPercent(5);
       setProgress(prev => [...prev, `模式: ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
+      setProgressPercent(10);
       
       // 根据模式显示IP隐藏状态
       if (mode === 'ultimate') {
@@ -159,8 +163,10 @@ function StealthTransferApp() {
       } else {
         setProgress(prev => [...prev, "⚠️ IP隐藏: 建议使用VPN"]);
       }
+      setProgressPercent(15);
       
       setProgress(prev => [...prev, `跳数: ${numHops}`]);
+      setProgressPercent(20);
       
       const response = await fetch(`${API_URL}/api/mixer`, {
         method: "POST",
@@ -177,13 +183,20 @@ function StealthTransferApp() {
         })
       });
 
+      setProgressPercent(30);
       const data = await response.json();
+      setProgressPercent(40);
       
       if (data.success && data.results) {
         setProgress(prev => [...prev, "\n交易流转详情:"]);
+        setProgressPercent(50);
         
         // 显示每一笔交易的地址流转
+        const totalTxs = data.results.length;
         data.results.forEach((tx: any, index: number) => {
+          const currentProgress = 50 + Math.floor((index / totalTxs) * 45);
+          setProgressPercent(currentProgress);
+          
           if (tx.status === 'success') {
             const fromAddr = tx.from ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}` : '源地址';
             const toAddr = tx.to ? `${tx.to.slice(0, 6)}...${tx.to.slice(-4)}` : '目标';
@@ -199,15 +212,18 @@ function StealthTransferApp() {
           }
         });
         
+        setProgressPercent(95);
         setProgress(prev => [...prev, `\n🎉 隐身发送完成！`]);
         setProgress(prev => [...prev, `目标地址收到: ${data.total_collected} BNB`]);
         setProgress(prev => [...prev, `成功: ${data.success_count} | 失败: ${data.failed_count}`]);
+        setProgressPercent(100);
       }
       
       setResult(data);
     } catch (error) {
       setProgress(prev => [...prev, `❌ 错误: ${error}`]);
       setResult({ success: false, error: String(error) });
+      setProgressPercent(0);
     } finally {
       setIsLoading(false);
     }
@@ -215,13 +231,8 @@ function StealthTransferApp() {
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
-      <h2 className="text-xl font-bold mb-6">鬼魅无影混币引擎</h2>
-      
       {/* Mixing Mode Selection */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          混币模式
-        </label>
         <div className="grid grid-cols-2 gap-4">
           {/* 快速模式 */}
           <button
@@ -267,6 +278,23 @@ function StealthTransferApp() {
             </div>
           </button>
         </div>
+        
+        {/* Mode Description */}
+        {mode === 'fast' && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-900 leading-relaxed">
+              <span className="font-semibold">单链混币</span> · 建议使用VPN保护IP · 适合小额转账（&lt;0.5 BNB）
+            </p>
+          </div>
+        )}
+        
+        {mode === 'ultimate' && (
+          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+            <p className="text-sm text-purple-900 leading-relaxed">
+              <span className="font-semibold">跨链路径：BSC → Polygon → Arbitrum → BSC</span> · 自动启用代理池隐藏IP · 适合大额转账（&gt;0.5 BNB） · 预计耗时约45分钟
+            </p>
+          </div>
+        )}
       </div>
       
       {/* Chain Selection */}
@@ -279,7 +307,6 @@ function StealthTransferApp() {
           onChange={(e) => setChain(e.target.value)}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
         >
-          <option value="bsc_testnet">BSC Testnet</option>
           <option value="bsc">BSC Mainnet</option>
           <option value="eth">Ethereum</option>
         </select>
@@ -377,9 +404,6 @@ function StealthTransferApp() {
             <p className="font-semibold">
               {(numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)).toFixed(4)} BNB
             </p>
-            <p className="text-xs text-gray-500">
-              {numHops} 次 × {MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003} BNB
-            </p>
           </div>
           <div>
             <p className="text-gray-600 text-xs">预估 Gas</p>
@@ -404,13 +428,29 @@ function StealthTransferApp() {
       <button
         onClick={handleExecute}
         disabled={isLoading || !privateKey || !toAddress || !amount}
-        className={`w-full py-3 rounded-lg font-semibold transition ${
+        className={`w-full py-4 rounded-lg font-semibold transition-all duration-300 relative overflow-hidden ${
           isLoading || !privateKey || !toAddress || !amount
             ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-            : "bg-purple-600 text-white hover:bg-purple-700"
+            : "bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-lg hover:shadow-xl"
         }`}
       >
-        {isLoading ? "执行中..." : "🚀 执行混币"}
+        {isLoading ? (
+          <div className="relative z-10">
+            <div className="flex items-center justify-center mb-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+              <span>处理中 {progressPercent}%</span>
+            </div>
+            {/* Progress Bar */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-900/30">
+              <div 
+                className="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-500 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              ></div>
+            </div>
+          </div>
+        ) : (
+          "安全转移"
+        )}
       </button>
 
       {/* Progress Display */}
