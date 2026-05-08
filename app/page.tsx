@@ -119,6 +119,7 @@ function StealthTransferApp() {
   const [mnemonic, setMnemonic] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [progress, setProgress] = useState<string[]>([]);
 
   const handleExecute = async () => {
     if (!privateKey || !toAddress || !amount) {
@@ -128,8 +129,12 @@ function StealthTransferApp() {
 
     setIsLoading(true);
     setResult(null);
+    setProgress([]);
 
     try {
+      setProgress(prev => [...prev, "🚀 开始混币..."]);
+      setProgress(prev => [...prev, `📊 跳数: ${numHops}`]);
+      
       const response = await fetch(`${API_URL}/api/mixer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -145,8 +150,32 @@ function StealthTransferApp() {
       });
 
       const data = await response.json();
+      
+      if (data.success && data.results) {
+        setProgress(prev => [...prev, "\n📦 交易详情:"]);
+        
+        const step1 = data.results.filter((r: any) => r.step === 1);
+        const step2 = data.results.filter((r: any) => r.step === 2);
+        const step3 = data.results.filter((r: any) => r.step === 3);
+        
+        if (step1.length > 0) {
+          setProgress(prev => [...prev, `✅ 步骤 1: 分散 ${step1.length} 次`]);
+        }
+        
+        if (step2.length > 0) {
+          setProgress(prev => [...prev, `✅ 步骤 2: 跳转 ${step2.length} 次`]);
+        }
+        
+        if (step3.length > 0) {
+          setProgress(prev => [...prev, `✅ 步骤 3: 汇总完成`]);
+        }
+        
+        setProgress(prev => [...prev, `\n🎉 完成！收到: ${data.total_collected} BNB`]);
+      }
+      
       setResult(data);
     } catch (error) {
+      setProgress(prev => [...prev, `❌ 错误: ${error}`]);
       setResult({ success: false, error: String(error) });
     } finally {
       setIsLoading(false);
@@ -301,6 +330,23 @@ function StealthTransferApp() {
       >
         {isLoading ? "执行中..." : "🚀 执行混币"}
       </button>
+
+      {/* Progress Display */}
+      {progress.length > 0 && (
+        <div className="mt-4 bg-gray-900 text-green-400 p-3 rounded-lg font-mono text-xs max-h-64 overflow-y-auto">
+          {progress.map((line, index) => (
+            <div key={index} className="whitespace-pre-wrap">
+              {line}
+            </div>
+          ))}
+          {isLoading && (
+            <div className="mt-2 flex items-center text-xs">
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-400 mr-2"></div>
+              <span>处理中...</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Result */}
       {result && (

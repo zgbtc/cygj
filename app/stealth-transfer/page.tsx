@@ -13,6 +13,7 @@ export default function StealthTransferPage() {
   const [mnemonic, setMnemonic] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [progress, setProgress] = useState<string[]>([]);
 
   const handleExecute = async () => {
     if (!privateKey || !toAddress || !amount) {
@@ -22,8 +23,14 @@ export default function StealthTransferPage() {
 
     setIsLoading(true);
     setResult(null);
+    setProgress([]);
 
     try {
+      // 添加初始进度
+      setProgress(prev => [...prev, "🚀 开始混币..."]);
+      setProgress(prev => [...prev, `📊 跳数: ${numHops}`]);
+      setProgress(prev => [...prev, `💰 金额: ${amount} BNB`]);
+      
       const response = await fetch(`${API_URL}/api/mixer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,8 +46,53 @@ export default function StealthTransferPage() {
       });
 
       const data = await response.json();
+      
+      // 如果成功，显示详细进度
+      if (data.success && data.results) {
+        setProgress(prev => [...prev, "\n📦 交易详情:"]);
+        
+        // 按步骤分组显示
+        const step1 = data.results.filter((r: any) => r.step === 1);
+        const step2 = data.results.filter((r: any) => r.step === 2);
+        const step3 = data.results.filter((r: any) => r.step === 3);
+        
+        if (step1.length > 0) {
+          setProgress(prev => [...prev, `\n✅ 步骤 1: 分散到 ${step1.length} 个中间地址`]);
+          step1.forEach((r: any, i: number) => {
+            if (r.status === 'success') {
+              setProgress(prev => [...prev, `  ${i+1}. ${r.to.slice(0, 10)}... (${r.amount} BNB)`]);
+            }
+          });
+        }
+        
+        if (step2.length > 0) {
+          setProgress(prev => [...prev, `\n✅ 步骤 2: 中间地址跳转 ${step2.length} 次`]);
+          step2.slice(0, 5).forEach((r: any, i: number) => {
+            if (r.status === 'success') {
+              setProgress(prev => [...prev, `  ${i+1}. ${r.from.slice(0, 8)}... → ${r.to.slice(0, 8)}...`]);
+            }
+          });
+          if (step2.length > 5) {
+            setProgress(prev => [...prev, `  ... 还有 ${step2.length - 5} 次跳转`]);
+          }
+        }
+        
+        if (step3.length > 0) {
+          setProgress(prev => [...prev, `\n✅ 步骤 3: 汇总到目标地址`]);
+          step3.forEach((r: any, i: number) => {
+            if (r.status === 'success') {
+              setProgress(prev => [...prev, `  ${i+1}. 收到 ${r.amount} BNB`]);
+            }
+          });
+        }
+        
+        setProgress(prev => [...prev, `\n🎉 混币完成！`]);
+        setProgress(prev => [...prev, `💵 目标地址共收到: ${data.total_collected} BNB`]);
+      }
+      
       setResult(data);
     } catch (error) {
+      setProgress(prev => [...prev, `\n❌ 错误: ${error}`]);
       setResult({ success: false, error: String(error) });
     } finally {
       setIsLoading(false);
@@ -298,6 +350,23 @@ export default function StealthTransferPage() {
               >
                 {isLoading ? "执行中..." : "🚀 执行混币"}
               </button>
+
+              {/* Progress Display */}
+              {progress.length > 0 && (
+                <div className="mt-6 bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm max-h-96 overflow-y-auto">
+                  {progress.map((line, index) => (
+                    <div key={index} className="whitespace-pre-wrap">
+                      {line}
+                    </div>
+                  ))}
+                  {isLoading && (
+                    <div className="mt-2 flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-400 mr-2"></div>
+                      <span>处理中...</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Result */}
               {result && (
