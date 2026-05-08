@@ -112,7 +112,8 @@ const MIXING_MODES = {
     time: "3-5 分钟",
     description: "交叉混淆 · 隐藏IP · 快速到账",
     color: "blue",
-    feeRate: 0.0003
+    feeRate: 0.0003,
+    crosschainFee: 0  // 单链无跨链费用
   },
   ultimate: {
     name: "极致隐私",
@@ -121,7 +122,8 @@ const MIXING_MODES = {
     time: "8-50 小时",
     description: "多链幽灵模式 · 完全匿名 · 无法追踪",
     color: "red",
-    feeRate: 0.0006
+    feeRate: 0.0006,
+    crosschainFee: 0.006  // 3次跨链，每次0.002
   }
 };
 
@@ -409,16 +411,30 @@ function StealthTransferApp() {
             <p className="text-gray-600 text-xs">预估 Gas</p>
             <p className="font-semibold">~{(numHops * 0.00021).toFixed(5)} BNB</p>
           </div>
+          {mode === 'ultimate' && (
+            <div>
+              <p className="text-gray-600 text-xs">跨链费用</p>
+              <p className="font-semibold text-orange-600">
+                {MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0} BNB
+              </p>
+              <p className="text-xs text-gray-500">3次跨链</p>
+            </div>
+          )}
           <div>
             <p className="text-gray-600 text-xs">总费用</p>
             <p className="font-semibold text-purple-600">
-              ~{((numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) + numHops * 0.00021).toFixed(5)} BNB
+              ~{((numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) + 
+                 numHops * 0.00021 + 
+                 (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)} BNB
             </p>
           </div>
           <div>
             <p className="text-gray-600 text-xs">预计收到</p>
             <p className="font-semibold text-green-600">
-              {amount ? (parseFloat(amount) - (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) - numHops * 0.00021).toFixed(5) : "0"} BNB
+              {amount ? (parseFloat(amount) - 
+                        (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) - 
+                        numHops * 0.00021 - 
+                        (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5) : "0"} BNB
             </p>
           </div>
         </div>
