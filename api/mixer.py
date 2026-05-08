@@ -41,17 +41,28 @@ class handler(BaseHTTPRequestHandler):
             # 获取参数
             chain = data.get('chain', 'bsc_testnet')
             mode = data.get('mode', 'fast')  # 混币模式: fast, privacy, ultimate
+            input_type = data.get('input_type', 'private_key')  # 'private_key' 或 'mnemonic'
             from_private_key = data.get('from_private_key')
+            from_mnemonic = data.get('from_mnemonic')
             to_address = data.get('to_address')
             total_amount = data.get('total_amount')
             num_hops = data.get('num_hops', 100)
-            mnemonic = data.get('mnemonic')
+            mnemonic = data.get('mnemonic')  # 用于生成中间地址的助记词
             gas_level = data.get('gas_level', 'standard')
             
-            # 验证必填参数
-            if not from_private_key:
-                raise Exception('缺少源地址私钥')
+            # 处理输入：助记词或私钥
+            if input_type == 'mnemonic':
+                if not from_mnemonic:
+                    raise Exception('缺少助记词')
+                
+                # 从助记词提取第一个地址的私钥
+                from hd_wallet import HDWallet
+                from_private_key = HDWallet.from_mnemonic_to_private_key(from_mnemonic, index=0)
+            else:
+                if not from_private_key:
+                    raise Exception('缺少源地址私钥')
             
+            # 验证必填参数
             if not to_address:
                 raise Exception('缺少目标地址')
             

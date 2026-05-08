@@ -63,6 +63,26 @@ class HDWallet:
         return accounts[0]
     
     @staticmethod
+    def from_mnemonic_to_private_key(mnemonic: str, index: int = 0) -> str:
+        """
+        从助记词提取指定索引的私钥
+        
+        Args:
+            mnemonic: 助记词
+            index: 地址索引（默认 0，即第一个地址）
+        
+        Returns:
+            私钥（hex 格式）
+        """
+        mnemo = Mnemonic('english')
+        if not mnemo.check(mnemonic):
+            raise ValueError("无效的助记词")
+        
+        account_path = f"m/44'/60'/0'/0/{index}"
+        account = Account.from_mnemonic(mnemonic, account_path=account_path)
+        return account.key.hex()
+    
+    @staticmethod
     def generate_random_mnemonic(word_count: int = 12) -> str:
         """
         生成随机助记词
