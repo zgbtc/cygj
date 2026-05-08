@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { API_URL } from "@/lib/config";
+import { Globe } from "lucide-react";
 
 // 工具数据
 const tools = [
@@ -830,6 +831,7 @@ function ComingSoonApp({ tool }: { tool: any }) {
 }
 
 export default function Home() {
+  const [lang, setLang] = useState<"en" | "zh">("en");
   const [selectedTool, setSelectedTool] = useState(tools[0]);
   const [dailyUsage, setDailyUsage] = useState(0);
 
@@ -864,6 +866,13 @@ export default function Home() {
               <img src="/logo.png" alt="CYGJ Logo" className="w-10 h-10" />
               <span className="text-2xl font-bold text-white">CYGJ Crypto Tools</span>
             </div>
+            <button
+              onClick={() => setLang(lang === "en" ? "zh" : "en")}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1a1a1a] hover:bg-[#2a2a2a] border border-[#d4af37]/30 hover:border-[#d4af37] text-sm font-medium transition text-white"
+            >
+              <Globe className="w-4 h-4 text-[#d4af37]" />
+              {lang === "en" ? "中文" : "EN"}
+            </button>
           </div>
         </nav>
       </header>
