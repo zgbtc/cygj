@@ -144,6 +144,7 @@ function StealthTransferApp() {
   const [progress, setProgress] = useState<string[]>([]);
   const [progressPercent, setProgressPercent] = useState(0);
   const [onlineUsers, setOnlineUsers] = useState(0);
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
   // 初始化在线人数（基于当前时间生成一个稳定的基数）
   useEffect(() => {
@@ -523,6 +524,263 @@ function StealthTransferApp() {
           "安全转移"
         )}
       </button>
+
+      {/* FAQ Section */}
+      <div className="mt-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">常见问题</h3>
+        <div className="space-y-2">
+          {/* FAQ 1 */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setExpandedFaq(expandedFaq === 1 ? null : 1)}
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <span className="text-sm font-medium text-gray-800">如何确保转账完全无法被追踪？</span>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 1 ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {expandedFaq === 1 && (
+              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+                <p className="font-semibold mb-2">技术原理：</p>
+                <p className="mb-3">我们采用<strong>多层隔离架构</strong>，从技术层面彻底切断资金链追溯：</p>
+                
+                <p className="font-semibold mb-1">快速模式 - 双层隔离技术：</p>
+                <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
+                  <li><strong>第一层隔离</strong>：源地址 → 临时隔离地址T1（切断源头）</li>
+                  <li><strong>混币层</strong>：T1通过10-100个HD钱包生成的中转地址进行随机跳转</li>
+                  <li><strong>第二层隔离</strong>：临时隔离地址T2 → 目标地址（切断终点）</li>
+                </ul>
+                
+                <p className="font-semibold mb-1">链上追溯分析：</p>
+                <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
+                  <li>区块链浏览器只能看到：A → T1（无后续）</li>
+                  <li>中间层：T1 → B1 → C3 → B5 → C2...（随机路径）</li>
+                  <li>最终层：T2 → Z（无前置）</li>
+                  <li><strong>结论</strong>：即使使用Chainalysis等专业工具，也无法建立A到Z的关联</li>
+                </ul>
+                
+                <p className="font-semibold mb-1">极致隐私 - 跨链断链技术：</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>每次跨链前混币到<strong>新的临时地址</strong></li>
+                  <li>跨链桥记录：临时地址B → 临时地址C（不同链）</li>
+                  <li>无法关联：源地址A在BSC，目标地址Z在BSC，但中间经过Polygon、Arbitrum</li>
+                  <li><strong>IP层保护</strong>：自动代理池，每次请求使用不同IP</li>
+                  <li><strong>时间混淆</strong>：5-30分钟随机延迟，打破时间关联特征</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* FAQ 2 */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setExpandedFaq(expandedFaq === 2 ? null : 2)}
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <span className="text-sm font-medium text-gray-800">资金安全性如何保障？会不会被盗或丢失？</span>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 2 ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {expandedFaq === 2 && (
+              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+                <p className="font-semibold mb-2">去中心化架构保障：</p>
+                
+                <p className="font-semibold text-green-700 mb-1">✅ 非托管设计</p>
+                <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
+                  <li>所有中转地址由您的助记词通过BIP44标准派生</li>
+                  <li>私钥完全由您控制，我们无法触碰您的资金</li>
+                  <li>不存在资金池，不经过任何中心化服务器</li>
+                </ul>
+                
+                <p className="font-semibold text-green-700 mb-1">✅ 链上可验证</p>
+                <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
+                  <li>每笔交易都有唯一哈希，可在区块链浏览器实时查询</li>
+                  <li>智能合约开源，代码逻辑透明可审计</li>
+                  <li>所有操作都在链上执行，不可篡改</li>
+                </ul>
+                
+                <p className="font-semibold text-green-700 mb-1">✅ 助记词安全</p>
+                <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
+                  <li>助记词仅在您的浏览器本地使用，不会上传服务器</li>
+                  <li>建议使用硬件钱包生成的助记词</li>
+                  <li>混币完成后，中转地址自动清空，不留余额</li>
+                </ul>
+                
+                <p className="font-semibold text-orange-700 mb-1">⚠️ 安全建议</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>首次使用建议小额测试（0.01-0.05 BNB）</li>
+                  <li>妥善保管助记词，丢失无法找回</li>
+                  <li>确认目标地址正确，链上交易不可撤销</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* FAQ 3 */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setExpandedFaq(expandedFaq === 3 ? null : 3)}
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <span className="text-sm font-medium text-gray-800">两种模式的隐私保护有什么本质区别？</span>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 3 ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {expandedFaq === 3 && (
+              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+                <p className="font-semibold mb-2">快速模式 - 单链深度混淆：</p>
+                <p className="mb-1"><strong>适用场景：</strong>日常转账、小额资金（&lt;0.5 BNB）、需要快速到账（30秒-5分钟）</p>
+                <p className="mb-1"><strong>技术特点：</strong>双层隔离 + 多跳混币，10-100个中转地址随机跳转</p>
+                <p className="mb-3"><strong>隐私级别：</strong>⭐⭐⭐⭐⭐ 可对抗区块链浏览器、普通分析工具</p>
+                
+                <p className="font-semibold mb-2">极致隐私 - 跨链幽灵模式：</p>
+                <p className="mb-1"><strong>适用场景：</strong>大额资金转移（&gt;0.5 BNB）、需要最高级别隐私保护</p>
+                <p className="mb-1"><strong>技术特点：</strong></p>
+                <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
+                  <li>跨链断链：BSC → Polygon → Arbitrum → BSC（68+链可选）</li>
+                  <li>每次跨链使用新的临时地址（跨链桥无法关联）</li>
+                  <li>自动代理池：每次请求不同IP，无法追踪网络层</li>
+                  <li>5-30分钟随机延迟：打破时间关联特征</li>
+                </ul>
+                <p className="mb-2"><strong>隐私级别：</strong>⭐⭐⭐⭐⭐⭐⭐ 可对抗Chainalysis、Elliptic等专业工具</p>
+                
+                <p className="font-semibold">核心差异：</p>
+                <p>快速模式：单链内混淆，速度优先 | 极致隐私：跨链断链，隐私优先</p>
+              </div>
+            )}
+          </div>
+
+          {/* FAQ 4 */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setExpandedFaq(expandedFaq === 4 ? null : 4)}
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <span className="text-sm font-medium text-gray-800">为什么需要提供助记词？安全吗？</span>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 4 ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {expandedFaq === 4 && (
+              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+                <p className="font-semibold mb-2">技术必要性：</p>
+                <p className="mb-1"><strong>HD钱包原理：</strong></p>
+                <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
+                  <li>混币需要生成10-100个中转地址</li>
+                  <li>使用BIP44标准从助记词派生子地址</li>
+                  <li>每个子地址都有独立的私钥，用于签名交易</li>
+                </ul>
+                
+                <p className="mb-1"><strong>为什么不能用单个私钥：</strong></p>
+                <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
+                  <li>单个私钥只能控制一个地址</li>
+                  <li>无法生成多个中转地址进行混币</li>
+                  <li>HD钱包可以从一个助记词派生无限个地址</li>
+                </ul>
+                
+                <p className="font-semibold mb-2">安全保障：</p>
+                <p className="font-semibold text-green-700 mb-1">✅ 本地处理</p>
+                <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
+                  <li>助记词仅在您的浏览器中使用</li>
+                  <li>不会发送到服务器或任何第三方</li>
+                  <li>所有派生计算都在本地完成</li>
+                </ul>
+                
+                <p className="font-semibold text-green-700 mb-1">✅ 临时使用</p>
+                <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
+                  <li>混币完成后，中转地址会自动清空</li>
+                  <li>不会在中转地址留下余额</li>
+                  <li>建议使用专门的助记词，不要用主钱包</li>
+                </ul>
+                
+                <p className="font-semibold mb-1">最佳实践：</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>使用新生成的助记词（不要用主钱包）</li>
+                  <li>混币完成后，可以废弃该助记词</li>
+                  <li>或者使用硬件钱包生成的助记词</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* FAQ 5 */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setExpandedFaq(expandedFaq === 5 ? null : 5)}
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <span className="text-sm font-medium text-gray-800">如果交易失败或卡住怎么办？</span>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform ${expandedFaq === 5 ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {expandedFaq === 5 && (
+              <div className="px-4 py-3 bg-gray-50 text-xs text-gray-700 leading-relaxed border-t border-gray-200">
+                <p className="font-semibold mb-2">容错机制：</p>
+                
+                <p className="font-semibold text-green-700 mb-1">✅ 自动重试</p>
+                <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
+                  <li>交易失败会自动重试3次</li>
+                  <li>Gas价格不足会自动提高重新发送</li>
+                  <li>网络拥堵会等待后重试</li>
+                </ul>
+                
+                <p className="font-semibold text-green-700 mb-1">✅ 资金保护</p>
+                <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
+                  <li>失败的交易不会扣除资金</li>
+                  <li>中转地址的余额会自动汇总</li>
+                  <li>不会出现资金卡在中间地址的情况</li>
+                </ul>
+                
+                <p className="font-semibold text-green-700 mb-1">✅ 实时监控</p>
+                <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
+                  <li>页面实时显示每笔交易状态</li>
+                  <li>可以看到当前进度和剩余时间</li>
+                  <li>每笔交易都有哈希，可在区块链浏览器查询</li>
+                </ul>
+                
+                <p className="font-semibold mb-2">常见问题处理：</p>
+                <p className="mb-1"><strong>情况1：交易长时间pending</strong></p>
+                <p className="mb-2 ml-2">原因：网络拥堵 | 解决：系统会自动提高Gas重新发送</p>
+                
+                <p className="mb-1"><strong>情况2：部分交易失败</strong></p>
+                <p className="mb-2 ml-2">原因：余额不足 | 解决：系统会汇总已完成的部分</p>
+                
+                <p className="mb-1"><strong>情况3：跨链卡住（极致隐私）</strong></p>
+                <p className="ml-2">原因：跨链桥拥堵 | 解决：等待跨链确认（通常5-30分钟）</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Progress Display */}
       {progress.length > 0 && (
