@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { API_URL } from "@/lib/config";
 import { Globe } from "lucide-react";
 
-// 工具数据
+// Tool data
 const tools = [
   {
     id: 1,
-    name: "鬼魅无影混币引擎",
+    name: "Stealth Transfer Mixer",
     category: "privacy",
-    description: "68+条链,唯一无法追踪的混币器，N次交叉转账多链100%隐藏资金路径，IP无法追踪，绝对安全保护隐私",
+    description: "68+ chains, the only untraceable mixer. Multi-hop cross-chain transfers 100% hide fund paths, IP untraceable, absolute privacy protection",
     icon: "🎭",
     chains: ["BSC", "ETH"],
     status: "active",
@@ -21,13 +21,13 @@ const tools = [
     id: 2,
     name: "HD Wallet Generator",
     category: "wallet",
-    description: "BIP44 标准 HD 钱包生成器，从助记词生成多个地址",
+    description: "BIP44 standard HD wallet generator, generate multiple addresses from mnemonic",
     icon: "🔐",
     features: [
-      "BIP44 标准",
-      "批量生成地址",
-      "兼容 MetaMask",
-      "安全可靠"
+      "BIP44 Standard",
+      "Batch Generate",
+      "MetaMask Compatible",
+      "Secure & Reliable"
     ],
     chains: ["BSC", "ETH", "Polygon"],
     status: "coming-soon",
@@ -38,13 +38,13 @@ const tools = [
     id: 3,
     name: "Batch Transfer",
     category: "defi",
-    description: "批量转账工具，一次性向多个地址发送代币",
+    description: "Batch transfer tool, send tokens to multiple addresses at once",
     icon: "💸",
     features: [
-      "10-10000 地址",
-      "CSV 导入",
-      "Gas 优化",
-      "实时追踪"
+      "10-10000 Addresses",
+      "CSV Import",
+      "Gas Optimization",
+      "Real-time Tracking"
     ],
     chains: ["BSC", "ETH", "Polygon"],
     status: "coming-soon",
@@ -55,13 +55,13 @@ const tools = [
     id: 4,
     name: "Token Analyzer",
     category: "analytics",
-    description: "代币分析工具，查看持仓分布、交易历史等数据",
+    description: "Token analysis tool, view holder distribution, transaction history and more",
     icon: "📊",
     features: [
-      "持仓分析",
-      "交易历史",
-      "价格图表",
-      "智能合约审计"
+      "Holder Analysis",
+      "Transaction History",
+      "Price Charts",
+      "Smart Contract Audit"
     ],
     chains: ["BSC", "ETH"],
     status: "coming-soon",
@@ -72,13 +72,13 @@ const tools = [
     id: 5,
     name: "Gas Tracker",
     category: "analytics",
-    description: "实时 Gas 价格追踪，帮助您选择最佳交易时机",
+    description: "Real-time gas price tracking, help you choose the best transaction timing",
     icon: "⛽",
     features: [
-      "实时 Gas 价格",
-      "历史数据",
-      "价格预测",
-      "通知提醒"
+      "Real-time Gas Price",
+      "Historical Data",
+      "Price Prediction",
+      "Notification Alerts"
     ],
     chains: ["BSC", "ETH", "Polygon"],
     status: "coming-soon",
@@ -89,13 +89,13 @@ const tools = [
     id: 6,
     name: "NFT Batch Mint",
     category: "defi",
-    description: "批量铸造 NFT 工具，支持多种标准",
+    description: "Batch NFT minting tool, supports multiple standards",
     icon: "🎨",
     features: [
       "ERC-721/1155",
-      "批量铸造",
-      "元数据管理",
-      "IPFS 上传"
+      "Batch Minting",
+      "Metadata Management",
+      "IPFS Upload"
     ],
     chains: ["ETH", "Polygon"],
     status: "coming-soon",
@@ -104,33 +104,33 @@ const tools = [
   }
 ];
 
-// 混币模式配置
+// Mixing mode configuration
 const MIXING_MODES = {
   fast: {
-    name: "快速模式",
+    name: "Fast Mode",
     icon: "⚡",
     privacy: "⭐⭐⭐⭐⭐",
-    time: "3-5 分钟",
-    description: "交叉混淆 · 隐藏IP · 快速到账",
+    time: "3-5 minutes",
+    description: "Cross Obfuscation · Hide IP · Fast Arrival",
     color: "blue",
     feeRate: 0.0003,
-    crosschainFee: 0,  // 单链无跨链费用
-    percentageFee: 0   // 不按百分比收费
+    crosschainFee: 0,  // No cross-chain fee for single chain
+    percentageFee: 0   // No percentage fee
   },
   ultimate: {
-    name: "极致隐私",
+    name: "Ultimate Privacy",
     icon: "🛡️",
     privacy: "⭐⭐⭐⭐⭐⭐⭐",
-    time: "8-50 小时",
-    description: "多链幽灵模式 · 完全匿名 · 无法追踪",
+    time: "8-50 hours",
+    description: "Multi-chain Ghost Mode · Fully Anonymous · Untraceable",
     color: "red",
-    feeRate: 0,  // 不按跳数收费
-    crosschainFee: 0.006,  // 3次跨链，每次0.002
-    percentageFee: 4.9  // 按转账金额的4.9%收费
+    feeRate: 0,  // No per-hop fee
+    crosschainFee: 0.006,  // 3 cross-chain, 0.002 each
+    percentageFee: 4.9  // 4.9% of transfer amount
   }
 };
 
-// 鬼魅无影混币引擎组件
+// Stealth Transfer Mixer component
 function StealthTransferApp() {
   const [chain, setChain] = useState("bsc");
   const [mode, setMode] = useState("fast");
@@ -141,6 +141,7 @@ function StealthTransferApp() {
   const [customHops, setCustomHops] = useState("");
   const [mnemonic, setMnemonic] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [detectedInputType, setDetectedInputType] = useState<"private_key" | "mnemonic" | null>(null);
   const [result, setResult] = useState<any>(null);
   const [progress, setProgress] = useState<string[]>([]);
   const [progressPercent, setProgressPercent] = useState(0);
@@ -171,6 +172,36 @@ function StealthTransferApp() {
     return () => clearInterval(interval);
   }, []);
 
+  // 智能识别输入类型（私钥或助记词）
+  const detectInputType = (input: string): "private_key" | "mnemonic" => {
+    const trimmed = input.trim();
+    const words = trimmed.split(/\s+/);
+    const wordCount = words.length;
+    
+    // 助记词：12/15/18/21/24 个单词
+    if ([12, 15, 18, 21, 24].includes(wordCount)) {
+      return 'mnemonic';
+    }
+    
+    // 私钥：0x开头或64位十六进制
+    if (trimmed.startsWith('0x') || /^[0-9a-fA-F]{64}$/.test(trimmed)) {
+      return 'private_key';
+    }
+    
+    return 'private_key'; // 默认
+  };
+
+  // 处理输入变化
+  const handleInputChange = (value: string) => {
+    setPrivateKey(value);
+    if (value.trim()) {
+      const type = detectInputType(value);
+      setDetectedInputType(type);
+    } else {
+      setDetectedInputType(null);
+    }
+  };
+
   const handleExecute = async () => {
     if (!privateKey || !toAddress || !amount) {
       alert("请填写所有必填字段");
@@ -199,19 +230,35 @@ function StealthTransferApp() {
       setProgress(prev => [...prev, `跳数: ${numHops}`]);
       setProgressPercent(20);
       
+      // 智能识别输入类型
+      const inputType = detectInputType(privateKey);
+      const inputValue = privateKey.trim();
+      
+      // 构建请求体
+      const requestBody: any = {
+        chain,
+        mode,
+        input_type: inputType,
+        to_address: toAddress,
+        total_amount: parseFloat(amount),
+        num_hops: numHops,
+        mnemonic: mnemonic || undefined,
+        gas_level: "standard"
+      };
+      
+      // 根据输入类型添加对应字段
+      if (inputType === 'mnemonic') {
+        requestBody.from_mnemonic = inputValue;
+        setProgress(prev => [...prev, "✅ 已识别为：助记词"]);
+      } else {
+        requestBody.from_private_key = inputValue;
+        setProgress(prev => [...prev, "✅ 已识别为：私钥"]);
+      }
+      
       const response = await fetch(`${API_URL}/api/mixer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chain,
-          mode,
-          from_private_key: privateKey,
-          to_address: toAddress,
-          total_amount: parseFloat(amount),
-          num_hops: numHops,
-          mnemonic: mnemonic || undefined,
-          gas_level: "standard"
-        })
+        body: JSON.stringify(requestBody)
       });
 
       setProgressPercent(30);
@@ -219,18 +266,18 @@ function StealthTransferApp() {
       setProgressPercent(40);
       
       if (data.success && data.results) {
-        setProgress(prev => [...prev, "\n交易流转详情:"]);
+        setProgress(prev => [...prev, "\nTransaction Flow Details:"]);
         setProgressPercent(50);
         
-        // 显示每一笔交易的地址流转
+        // Display address flow for each transaction
         const totalTxs = data.results.length;
         data.results.forEach((tx: any, index: number) => {
           const currentProgress = 50 + Math.floor((index / totalTxs) * 45);
           setProgressPercent(currentProgress);
           
           if (tx.status === 'success') {
-            const fromAddr = tx.from ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}` : '源地址';
-            const toAddr = tx.to ? `${tx.to.slice(0, 6)}...${tx.to.slice(-4)}` : '目标';
+            const fromAddr = tx.from ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}` : 'Source';
+            const toAddr = tx.to ? `${tx.to.slice(0, 6)}...${tx.to.slice(-4)}` : 'Target';
             const txHash = tx.tx_hash ? `${tx.tx_hash.slice(0, 8)}...` : '';
             
             setProgress(prev => [...prev, 
@@ -238,21 +285,21 @@ function StealthTransferApp() {
             ]);
           } else if (tx.status === 'failed') {
             setProgress(prev => [...prev, 
-              `❌ [${index + 1}/${data.results.length}] 交易失败: ${tx.error || '未知错误'}`
+              `❌ [${index + 1}/${data.results.length}] Transaction failed: ${tx.error || 'Unknown error'}`
             ]);
           }
         });
         
         setProgressPercent(95);
-        setProgress(prev => [...prev, `\n🎉 隐身发送完成！`]);
-        setProgress(prev => [...prev, `目标地址收到: ${data.total_collected} BNB`]);
-        setProgress(prev => [...prev, `成功: ${data.success_count} | 失败: ${data.failed_count}`]);
+        setProgress(prev => [...prev, `\n🎉 Stealth transfer complete!`]);
+        setProgress(prev => [...prev, `Target received: ${data.total_collected} BNB`]);
+        setProgress(prev => [...prev, `Success: ${data.success_count} | Failed: ${data.failed_count}`]);
         setProgressPercent(100);
       }
       
       setResult(data);
     } catch (error) {
-      setProgress(prev => [...prev, `❌ 错误: ${error}`]);
+      setProgress(prev => [...prev, `❌ Error: ${error}`]);
       setResult({ success: false, error: String(error) });
       setProgressPercent(0);
     } finally {
@@ -266,7 +313,7 @@ function StealthTransferApp() {
       <div className="mb-4 flex items-center justify-between bg-[#0a0a0a] border border-[#10b981]/30 rounded-lg px-4 py-2">
         <div className="flex items-center space-x-2">
           <div className="w-2 h-2 bg-[#10b981] rounded-full animate-pulse shadow-lg shadow-[#10b981]/50"></div>
-          <span className="text-sm text-gray-400">今日在线</span>
+          <span className="text-sm text-gray-400">Online Today</span>
         </div>
         <span className="text-lg font-bold text-[#10b981]">{onlineUsers}</span>
       </div>
@@ -274,7 +321,7 @@ function StealthTransferApp() {
       {/* Mixing Mode Selection */}
       <div className="mb-6">
         <div className="grid grid-cols-2 gap-4">
-          {/* 快速模式 */}
+          {/* Fast Mode */}
           <button
             onClick={() => setMode('fast')}
             className={`relative p-5 rounded-xl transition-all duration-300 overflow-hidden group border ${
@@ -283,20 +330,20 @@ function StealthTransferApp() {
                 : "bg-[#0a0a0a] border-[#d4af37]/20 hover:border-[#d4af37]/50 hover:shadow-lg hover:shadow-[#d4af37]/20"
             }`}
           >
-            {/* 发光效果 */}
+            {/* Glow effect */}
             <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-[#d4af37]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
               mode === 'fast' ? 'opacity-30' : ''
             }`}></div>
             
             <div className="relative z-10">
-              <div className={`font-bold text-base mb-2 ${mode === 'fast' ? 'text-[#d4af37]' : 'text-white'}`}>快速模式</div>
+              <div className={`font-bold text-base mb-2 ${mode === 'fast' ? 'text-[#d4af37]' : 'text-white'}`}>Fast Mode</div>
               <div className={`text-xs leading-relaxed ${mode === 'fast' ? 'text-[#d4af37]/80' : 'text-gray-400'}`}>
-                交叉混淆 · 隐藏IP · 快速到账
+                Cross Obfuscation · Hide IP · Fast Arrival
               </div>
             </div>
           </button>
 
-          {/* 极致隐私 */}
+          {/* Ultimate Privacy */}
           <button
             onClick={() => setMode('ultimate')}
             className={`relative p-5 rounded-xl transition-all duration-300 overflow-hidden group border ${
@@ -305,15 +352,15 @@ function StealthTransferApp() {
                 : "bg-[#0a0a0a] border-[#d4af37]/20 hover:border-[#d4af37]/50 hover:shadow-lg hover:shadow-[#d4af37]/20"
             }`}
           >
-            {/* 发光效果 */}
+            {/* Glow effect */}
             <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-[#d4af37]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
               mode === 'ultimate' ? 'opacity-30' : ''
             }`}></div>
             
             <div className="relative z-10">
-              <div className={`font-bold text-base mb-2 ${mode === 'ultimate' ? 'text-[#d4af37]' : 'text-white'}`}>极致隐私</div>
+              <div className={`font-bold text-base mb-2 ${mode === 'ultimate' ? 'text-[#d4af37]' : 'text-white'}`}>Ultimate Privacy</div>
               <div className={`text-xs leading-relaxed ${mode === 'ultimate' ? 'text-[#d4af37]/80' : 'text-gray-400'}`}>
-                多链幽灵模式 · 完全匿名 · 无法追踪
+                Multi-chain Ghost Mode · Fully Anonymous · Untraceable
               </div>
             </div>
           </button>
@@ -323,7 +370,7 @@ function StealthTransferApp() {
         {mode === 'fast' && (
           <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#d4af37]/30 rounded-lg shadow-lg shadow-[#d4af37]/10">
             <p className="text-sm text-gray-300 leading-relaxed">
-              <span className="font-semibold text-[#d4af37]">单链混币</span> · 建议使用VPN保护IP · 适合小额转账（&lt;0.5 BNB）
+              <span className="font-semibold text-[#d4af37]">Single-chain Mixing</span> · VPN recommended for IP protection · Suitable for small transfers (&lt;0.5 BNB)
             </p>
           </div>
         )}
@@ -331,7 +378,7 @@ function StealthTransferApp() {
         {mode === 'ultimate' && (
           <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#d4af37]/30 rounded-lg shadow-lg shadow-[#d4af37]/10">
             <p className="text-sm text-gray-300 leading-relaxed">
-              <span className="font-semibold text-[#d4af37]">适合大额转账</span>，N次交叉转账+多链路径+100%隐藏资金路径，IP无法追踪，绝对安全保护隐私
+              <span className="font-semibold text-[#d4af37]">Suitable for large transfers</span>, Multi-hop cross-chain + multi-chain paths + 100% hide fund paths, IP untraceable, absolute privacy protection
             </p>
           </div>
         )}
@@ -340,7 +387,7 @@ function StealthTransferApp() {
       {/* Chain Selection */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          选择网络
+          Select Network
         </label>
         <select
           value={chain}
@@ -352,24 +399,31 @@ function StealthTransferApp() {
         </select>
       </div>
 
-      {/* Private Key */}
+      {/* Private Key / Mnemonic Input */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          源地址私钥 *
+          源地址私钥/助记词 *
         </label>
-        <input
-          type="password"
+        <textarea
           value={privateKey}
-          onChange={(e) => setPrivateKey(e.target.value)}
-          placeholder="输入私钥"
-          className="w-full px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm"
+          onChange={(e) => handleInputChange(e.target.value)}
+          placeholder="输入私钥或助记词（12/24个单词）"
+          rows={3}
+          className="w-full px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm resize-none"
         />
+        {detectedInputType && (
+          <p className="text-xs text-[#d4af37] mt-1 flex items-center">
+            <span className="mr-1">ℹ️</span>
+            已识别为：{detectedInputType === 'mnemonic' ? '助记词' : '私钥'}
+            {detectedInputType === 'mnemonic' && ' (将使用第一个地址)'}
+          </p>
+        )}
       </div>
 
       {/* Target Address */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          目标地址 *
+          Target Address *
         </label>
         <input
           type="text"
@@ -383,7 +437,7 @@ function StealthTransferApp() {
       {/* Amount */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          转账金额 (BNB) *
+          Transfer Amount (BNB) *
         </label>
         <input
           type="number"
@@ -398,12 +452,12 @@ function StealthTransferApp() {
       {/* Number of Hops */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          跳数: <span className="text-[#d4af37]">{numHops}</span> <span className="text-xs text-gray-400">(越多越隐秘)</span>
+          Hops: <span className="text-[#d4af37]">{numHops}</span> <span className="text-xs text-gray-400">(more is stealthier)</span>
           <span className="ml-2 text-xs text-[#d4af37]">
-            预计 {numHops <= 10 ? '~30秒' : numHops <= 50 ? '~2.5分钟' : numHops <= 100 ? '~5分钟' : '~20分钟'}
+            Est. {numHops <= 10 ? '~30s' : numHops <= 50 ? '~2.5min' : numHops <= 100 ? '~5min' : '~20min'}
           </span>
         </label>
-        <p className="text-xs text-gray-400 mb-2">多个中转钱包地址，隐藏转账路径，实现隐匿转账，确保资金的隐私。</p>
+        <p className="text-xs text-gray-400 mb-2">Multiple intermediate wallet addresses hide transfer paths for anonymous transfers and fund privacy.</p>
         <div className="flex gap-2">
           {[10, 50, 100, 500, 1000].map((num) => (
             <button
@@ -436,7 +490,7 @@ function StealthTransferApp() {
               }
             }}
             className="flex-1 px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm"
-            placeholder="自定义"
+            placeholder="Custom"
           />
         </div>
       </div>
@@ -444,7 +498,7 @@ function StealthTransferApp() {
       <div className="bg-[#0a0a0a] border border-[#d4af37]/30 p-4 rounded-lg mb-4 shadow-lg shadow-[#d4af37]/10">
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-gray-400 text-xs">服务费</p>
+            <p className="text-gray-400 text-xs">Service Fee</p>
             <p className="font-semibold text-[#d4af37]">
               {mode === 'ultimate' && amount
                 ? (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100).toFixed(4)
@@ -452,19 +506,19 @@ function StealthTransferApp() {
             </p>
           </div>
           <div>
-            <p className="text-gray-400 text-xs">预估 Gas</p>
+            <p className="text-gray-400 text-xs">Est. Gas</p>
             <p className="font-semibold text-[#d4af37]">~{(numHops * 0.00021).toFixed(5)} BNB</p>
           </div>
           {mode === 'ultimate' && (
             <div>
-              <p className="text-gray-400 text-xs">跨链费用</p>
+              <p className="text-gray-400 text-xs">Cross-chain Fee</p>
               <p className="font-semibold text-[#ffa500]">
                 ~{MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0} BNB
               </p>
             </div>
           )}
           <div>
-            <p className="text-gray-400 text-xs">总费用</p>
+            <p className="text-gray-400 text-xs">Total Fee</p>
             <p className="font-semibold text-[#d4af37]">
               ~{mode === 'ultimate' && amount
                 ? ((parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100) + 
@@ -476,7 +530,7 @@ function StealthTransferApp() {
             </p>
           </div>
           <div>
-            <p className="text-gray-400 text-xs">预计收到</p>
+            <p className="text-gray-400 text-xs">Expected Receive</p>
             <p className="font-semibold text-[#10b981]">
               {amount ? (
                 mode === 'ultimate'
@@ -504,7 +558,7 @@ function StealthTransferApp() {
             : "bg-gradient-to-r from-[#d4af37] via-[#ffd700] to-[#d4af37] text-black hover:shadow-2xl hover:shadow-[#d4af37]/50 border-2 border-[#d4af37] shadow-xl shadow-[#d4af37]/30"
         }`}
       >
-        {/* 发光动画效果 */}
+        {/* Glow animation effect */}
         {!isLoading && privateKey && toAddress && amount && (
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
         )}
@@ -513,7 +567,7 @@ function StealthTransferApp() {
           <div className="relative z-10">
             <div className="flex items-center justify-center mb-2">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black mr-2"></div>
-              <span>处理中 {progressPercent}%</span>
+              <span>Processing {progressPercent}%</span>
             </div>
             {/* Progress Bar */}
             <div className="absolute bottom-0 left-0 right-0 h-2 bg-black/30 rounded-b-lg overflow-hidden">
@@ -524,13 +578,13 @@ function StealthTransferApp() {
             </div>
           </div>
         ) : (
-          <span className="relative z-10">安全转移</span>
+          <span className="relative z-10">Secure Transfer</span>
         )}
       </button>
 
       {/* FAQ Section */}
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-[#d4af37] mb-3 border-b border-[#d4af37]/30 pb-2">常见问题</h3>
+        <h3 className="text-sm font-semibold text-[#d4af37] mb-3 border-b border-[#d4af37]/30 pb-2">FAQ</h3>
         <div className="space-y-2">
           {/* FAQ 1 */}
           <div className="border border-[#d4af37]/20 rounded-lg overflow-hidden bg-[#0a0a0a]">
@@ -538,7 +592,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 1 ? null : 1)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">如何确保转账完全无法被追踪？</span>
+              <span className="text-sm font-medium text-white">How to ensure transfers are completely untraceable?</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 1 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -550,31 +604,31 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 1 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">技术原理：</p>
-                <p className="mb-3">我们采用<strong>多层隔离架构</strong>，从技术层面彻底切断资金链追溯：</p>
+                <p className="font-semibold mb-2">Technical Principle:</p>
+                <p className="mb-3">We use <strong>multi-layer isolation architecture</strong> to completely sever fund tracing at the technical level:</p>
                 
-                <p className="font-semibold mb-1">快速模式 - 双层隔离技术：</p>
+                <p className="font-semibold mb-1">Fast Mode - Dual-layer Isolation:</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li><strong>第一层隔离</strong>：源地址 → 临时隔离地址T1（切断源头）</li>
-                  <li><strong>混币层</strong>：T1通过10-100个HD钱包生成的中转地址进行随机跳转</li>
-                  <li><strong>第二层隔离</strong>：临时隔离地址T2 → 目标地址（切断终点）</li>
+                  <li><strong>First Layer</strong>: Source → Temp Address T1 (cut source)</li>
+                  <li><strong>Mixing Layer</strong>: T1 randomly hops through 10-100 HD wallet addresses</li>
+                  <li><strong>Second Layer</strong>: Temp Address T2 → Target (cut destination)</li>
                 </ul>
                 
-                <p className="font-semibold mb-1">链上追溯分析：</p>
+                <p className="font-semibold mb-1">On-chain Trace Analysis:</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>区块链浏览器只能看到：A → T1（无后续）</li>
-                  <li>中间层：T1 → B1 → C3 → B5 → C2...（随机路径）</li>
-                  <li>最终层：T2 → Z（无前置）</li>
-                  <li><strong>结论</strong>：即使使用Chainalysis等专业工具，也无法建立A到Z的关联</li>
+                  <li>Blockchain explorer only sees: A → T1 (no continuation)</li>
+                  <li>Middle layer: T1 → B1 → C3 → B5 → C2... (random path)</li>
+                  <li>Final layer: T2 → Z (no predecessor)</li>
+                  <li><strong>Conclusion</strong>: Even with Chainalysis tools, cannot link A to Z</li>
                 </ul>
                 
-                <p className="font-semibold mb-1">极致隐私 - 跨链断链技术：</p>
+                <p className="font-semibold mb-1">Ultimate Privacy - Cross-chain Break:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>每次跨链前混币到<strong>新的临时地址</strong></li>
-                  <li>跨链桥记录：临时地址B → 临时地址C（不同链）</li>
-                  <li>无法关联：源地址A在BSC，目标地址Z在BSC，但中间经过Polygon、Arbitrum</li>
-                  <li><strong>IP层保护</strong>：自动代理池，每次请求使用不同IP</li>
-                  <li><strong>时间混淆</strong>：5-30分钟随机延迟，打破时间关联特征</li>
+                  <li>Mix to <strong>new temp address</strong> before each cross-chain</li>
+                  <li>Bridge records: Temp B → Temp C (different chains)</li>
+                  <li>Unlinkable: Source A on BSC, Target Z on BSC, but via Polygon, Arbitrum</li>
+                  <li><strong>IP Protection</strong>: Auto proxy pool, different IP per request</li>
+                  <li><strong>Time Obfuscation</strong>: 5-30min random delays break timing patterns</li>
                 </ul>
               </div>
             )}
@@ -586,7 +640,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 2 ? null : 2)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">资金安全性如何保障？会不会被盗或丢失？</span>
+              <span className="text-sm font-medium text-white">How is fund security guaranteed? Risk of theft or loss?</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 2 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -598,34 +652,34 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 2 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">去中心化架构保障：</p>
+                <p className="font-semibold mb-2">Decentralized Architecture Guarantee:</p>
                 
-                <p className="font-semibold text-green-700 mb-1">✅ 非托管设计</p>
+                <p className="font-semibold text-green-700 mb-1">✅ Non-custodial Design</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>所有中转地址由您的助记词通过BIP44标准派生</li>
-                  <li>私钥完全由您控制，我们无法触碰您的资金</li>
-                  <li>不存在资金池，不经过任何中心化服务器</li>
+                  <li>All intermediate addresses derived from your mnemonic via BIP44</li>
+                  <li>Private keys fully controlled by you, we cannot touch your funds</li>
+                  <li>No fund pool, no centralized servers</li>
                 </ul>
                 
-                <p className="font-semibold text-green-700 mb-1">✅ 链上可验证</p>
+                <p className="font-semibold text-green-700 mb-1">✅ On-chain Verifiable</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>每笔交易都有唯一哈希，可在区块链浏览器实时查询</li>
-                  <li>智能合约开源，代码逻辑透明可审计</li>
-                  <li>所有操作都在链上执行，不可篡改</li>
+                  <li>Each transaction has unique hash, queryable on blockchain explorer</li>
+                  <li>Smart contracts open source, code logic transparent and auditable</li>
+                  <li>All operations executed on-chain, immutable</li>
                 </ul>
                 
-                <p className="font-semibold text-green-700 mb-1">✅ 助记词安全</p>
+                <p className="font-semibold text-green-700 mb-1">✅ Mnemonic Security</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>助记词仅在您的浏览器本地使用，不会上传服务器</li>
-                  <li>建议使用硬件钱包生成的助记词</li>
-                  <li>混币完成后，中转地址自动清空，不留余额</li>
+                  <li>Mnemonic only used locally in your browser, never uploaded</li>
+                  <li>Recommend using hardware wallet generated mnemonic</li>
+                  <li>After mixing, intermediate addresses auto-cleared, no balance left</li>
                 </ul>
                 
-                <p className="font-semibold text-orange-700 mb-1">⚠️ 安全建议</p>
+                <p className="font-semibold text-orange-700 mb-1">⚠️ Security Recommendations</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>首次使用建议小额测试（0.01-0.05 BNB）</li>
-                  <li>妥善保管助记词，丢失无法找回</li>
-                  <li>确认目标地址正确，链上交易不可撤销</li>
+                  <li>First time use: test with small amount (0.01-0.05 BNB)</li>
+                  <li>Keep mnemonic safe, loss is unrecoverable</li>
+                  <li>Confirm target address correct, on-chain transactions irreversible</li>
                 </ul>
               </div>
             )}
@@ -637,7 +691,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 3 ? null : 3)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">两种模式的隐私保护有什么本质区别？</span>
+              <span className="text-sm font-medium text-white">What's the key difference in privacy protection between modes?</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 3 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -649,24 +703,24 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 3 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">快速模式 - 单链深度混淆：</p>
-                <p className="mb-1"><strong>适用场景：</strong>日常转账、小额资金（&lt;0.5 BNB）、需要快速到账（30秒-5分钟）</p>
-                <p className="mb-1"><strong>技术特点：</strong>双层隔离 + 多跳混币，10-100个中转地址随机跳转</p>
-                <p className="mb-3"><strong>隐私级别：</strong>⭐⭐⭐⭐⭐ 可对抗区块链浏览器、普通分析工具</p>
+                <p className="font-semibold mb-2">Fast Mode - Single-chain Deep Obfuscation:</p>
+                <p className="mb-1"><strong>Use Case:</strong> Daily transfers, small amounts (&lt;0.5 BNB), need fast arrival (30s-5min)</p>
+                <p className="mb-1"><strong>Technical Features:</strong> Dual-layer isolation + multi-hop mixing, 10-100 intermediate addresses random hops</p>
+                <p className="mb-3"><strong>Privacy Level:</strong> ⭐⭐⭐⭐⭐ Resistant to blockchain explorers, common analysis tools</p>
                 
-                <p className="font-semibold mb-2">极致隐私 - 跨链幽灵模式：</p>
-                <p className="mb-1"><strong>适用场景：</strong>大额资金转移（&gt;0.5 BNB）、需要最高级别隐私保护</p>
-                <p className="mb-1"><strong>技术特点：</strong></p>
+                <p className="font-semibold mb-2">Ultimate Privacy - Cross-chain Ghost Mode:</p>
+                <p className="mb-1"><strong>Use Case:</strong> Large fund transfers (&gt;0.5 BNB), need highest privacy protection</p>
+                <p className="mb-1"><strong>Technical Features:</strong></p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>跨链断链：BSC → Polygon → Arbitrum → BSC（68+链可选）</li>
-                  <li>每次跨链使用新的临时地址（跨链桥无法关联）</li>
-                  <li>自动代理池：每次请求不同IP，无法追踪网络层</li>
-                  <li>5-30分钟随机延迟：打破时间关联特征</li>
+                  <li>Cross-chain break: BSC → Polygon → Arbitrum → BSC (68+ chains available)</li>
+                  <li>New temp address for each cross-chain (bridge cannot link)</li>
+                  <li>Auto proxy pool: different IP per request, network layer untraceable</li>
+                  <li>5-30min random delays: break timing correlation patterns</li>
                 </ul>
-                <p className="mb-2"><strong>隐私级别：</strong>⭐⭐⭐⭐⭐⭐⭐ 可对抗Chainalysis、Elliptic等专业工具</p>
+                <p className="mb-2"><strong>Privacy Level:</strong> ⭐⭐⭐⭐⭐⭐⭐ Resistant to Chainalysis, Elliptic and other pro tools</p>
                 
-                <p className="font-semibold">核心差异：</p>
-                <p>快速模式：单链内混淆，速度优先 | 极致隐私：跨链断链，隐私优先</p>
+                <p className="font-semibold">Core Difference:</p>
+                <p>Fast Mode: Single-chain obfuscation, speed priority | Ultimate Privacy: Cross-chain break, privacy priority</p>
               </div>
             )}
           </div>
@@ -677,7 +731,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 4 ? null : 4)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">为什么需要提供助记词？安全吗？</span>
+              <span className="text-sm font-medium text-white">Why provide mnemonic? Is it safe?</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 4 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -689,41 +743,41 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 4 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">技术必要性：</p>
-                <p className="mb-1"><strong>HD钱包原理：</strong></p>
+                <p className="font-semibold mb-2">Technical Necessity:</p>
+                <p className="mb-1"><strong>HD Wallet Principle:</strong></p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>混币需要生成10-100个中转地址</li>
-                  <li>使用BIP44标准从助记词派生子地址</li>
-                  <li>每个子地址都有独立的私钥，用于签名交易</li>
+                  <li>Mixing requires generating 10-100 intermediate addresses</li>
+                  <li>Use BIP44 standard to derive child addresses from mnemonic</li>
+                  <li>Each child address has independent private key for signing transactions</li>
                 </ul>
                 
-                <p className="mb-1"><strong>为什么不能用单个私钥：</strong></p>
+                <p className="mb-1"><strong>Why not use single private key:</strong></p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>单个私钥只能控制一个地址</li>
-                  <li>无法生成多个中转地址进行混币</li>
-                  <li>HD钱包可以从一个助记词派生无限个地址</li>
+                  <li>Single private key only controls one address</li>
+                  <li>Cannot generate multiple intermediate addresses for mixing</li>
+                  <li>HD wallet can derive unlimited addresses from one mnemonic</li>
                 </ul>
                 
-                <p className="font-semibold mb-2">安全保障：</p>
-                <p className="font-semibold text-green-700 mb-1">✅ 本地处理</p>
+                <p className="font-semibold mb-2">Security Guarantee:</p>
+                <p className="font-semibold text-green-700 mb-1">✅ Local Processing</p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>助记词仅在您的浏览器中使用</li>
-                  <li>不会发送到服务器或任何第三方</li>
-                  <li>所有派生计算都在本地完成</li>
+                  <li>Mnemonic only used in your browser</li>
+                  <li>Not sent to server or any third party</li>
+                  <li>All derivation calculations done locally</li>
                 </ul>
                 
-                <p className="font-semibold text-green-700 mb-1">✅ 临时使用</p>
+                <p className="font-semibold text-green-700 mb-1">✅ Temporary Use</p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>混币完成后，中转地址会自动清空</li>
-                  <li>不会在中转地址留下余额</li>
-                  <li>建议使用专门的助记词，不要用主钱包</li>
+                  <li>After mixing, intermediate addresses auto-cleared</li>
+                  <li>No balance left in intermediate addresses</li>
+                  <li>Recommend using dedicated mnemonic, not main wallet</li>
                 </ul>
                 
-                <p className="font-semibold mb-1">最佳实践：</p>
+                <p className="font-semibold mb-1">Best Practices:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>使用新生成的助记词（不要用主钱包）</li>
-                  <li>混币完成后，可以废弃该助记词</li>
-                  <li>或者使用硬件钱包生成的助记词</li>
+                  <li>Use newly generated mnemonic (not main wallet)</li>
+                  <li>After mixing, can discard the mnemonic</li>
+                  <li>Or use hardware wallet generated mnemonic</li>
                 </ul>
               </div>
             )}
@@ -735,7 +789,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 5 ? null : 5)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">如果交易失败或卡住怎么办？</span>
+              <span className="text-sm font-medium text-white">What if transaction fails or gets stuck?</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 5 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -747,38 +801,38 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 5 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">容错机制：</p>
+                <p className="font-semibold mb-2">Fault Tolerance Mechanism:</p>
                 
-                <p className="font-semibold text-green-700 mb-1">✅ 自动重试</p>
+                <p className="font-semibold text-green-700 mb-1">✅ Auto Retry</p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>交易失败会自动重试3次</li>
-                  <li>Gas价格不足会自动提高重新发送</li>
-                  <li>网络拥堵会等待后重试</li>
+                  <li>Failed transactions auto-retry 3 times</li>
+                  <li>Insufficient gas price auto-increased and resent</li>
+                  <li>Network congestion waits then retries</li>
                 </ul>
                 
-                <p className="font-semibold text-green-700 mb-1">✅ 资金保护</p>
+                <p className="font-semibold text-green-700 mb-1">✅ Fund Protection</p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>失败的交易不会扣除资金</li>
-                  <li>中转地址的余额会自动汇总</li>
-                  <li>不会出现资金卡在中间地址的情况</li>
+                  <li>Failed transactions don't deduct funds</li>
+                  <li>Intermediate address balances auto-collected</li>
+                  <li>No funds stuck in intermediate addresses</li>
                 </ul>
                 
-                <p className="font-semibold text-green-700 mb-1">✅ 实时监控</p>
+                <p className="font-semibold text-green-700 mb-1">✅ Real-time Monitoring</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>页面实时显示每笔交易状态</li>
-                  <li>可以看到当前进度和剩余时间</li>
-                  <li>每笔交易都有哈希，可在区块链浏览器查询</li>
+                  <li>Page shows real-time transaction status</li>
+                  <li>Can see current progress and remaining time</li>
+                  <li>Each transaction has hash, queryable on blockchain explorer</li>
                 </ul>
                 
-                <p className="font-semibold mb-2">常见问题处理：</p>
-                <p className="mb-1"><strong>情况1：交易长时间pending</strong></p>
-                <p className="mb-2 ml-2">原因：网络拥堵 | 解决：系统会自动提高Gas重新发送</p>
+                <p className="font-semibold mb-2">Common Issue Handling:</p>
+                <p className="mb-1"><strong>Case 1: Transaction pending long time</strong></p>
+                <p className="mb-2 ml-2">Cause: Network congestion | Solution: System auto-increases gas and resends</p>
                 
-                <p className="mb-1"><strong>情况2：部分交易失败</strong></p>
-                <p className="mb-2 ml-2">原因：余额不足 | 解决：系统会汇总已完成的部分</p>
+                <p className="mb-1"><strong>Case 2: Partial transaction failure</strong></p>
+                <p className="mb-2 ml-2">Cause: Insufficient balance | Solution: System collects completed portions</p>
                 
-                <p className="mb-1"><strong>情况3：跨链卡住（极致隐私）</strong></p>
-                <p className="ml-2">原因：跨链桥拥堵 | 解决：等待跨链确认（通常5-30分钟）</p>
+                <p className="mb-1"><strong>Case 3: Cross-chain stuck (Ultimate Privacy)</strong></p>
+                <p className="ml-2">Cause: Bridge congestion | Solution: Wait for cross-chain confirmation (usually 5-30min)</p>
               </div>
             )}
           </div>
@@ -796,7 +850,7 @@ function StealthTransferApp() {
           {isLoading && (
             <div className="mt-2 flex items-center text-xs">
               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#d4af37] mr-2"></div>
-              <span>处理中...</span>
+              <span>Processing...</span>
             </div>
           )}
         </div>
@@ -806,7 +860,7 @@ function StealthTransferApp() {
       {result && !result.success && (
         <div className="mt-4 p-4 rounded-lg text-sm bg-red-900/20 border border-red-500/30">
           <h3 className="font-semibold mb-2 text-red-400">
-            ❌ 执行失败
+            ❌ Execution Failed
           </h3>
           <p className="text-xs text-red-300">{result.error}</p>
         </div>
@@ -815,7 +869,7 @@ function StealthTransferApp() {
   );
 }
 
-// 即将推出组件
+// Coming Soon component
 function ComingSoonApp({ tool }: { tool: any }) {
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 text-center">
@@ -823,8 +877,8 @@ function ComingSoonApp({ tool }: { tool: any }) {
       <h2 className="text-2xl font-bold mb-2">{tool.name}</h2>
       <p className="text-gray-600 mb-6">{tool.description}</p>
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p className="text-yellow-700 font-semibold">🚧 即将推出</p>
-        <p className="text-sm text-gray-600 mt-2">敬请期待...</p>
+        <p className="text-yellow-700 font-semibold">🚧 Coming Soon</p>
+        <p className="text-sm text-gray-600 mt-2">Stay tuned...</p>
       </div>
     </div>
   );
@@ -835,7 +889,7 @@ export default function Home() {
   const [selectedTool, setSelectedTool] = useState(tools[0]);
   const [dailyUsage, setDailyUsage] = useState(0);
 
-  // 初始化今日使用次数
+  // Initialize daily usage count
   useEffect(() => {
     const now = new Date();
     const dayMinutes = now.getHours() * 60 + now.getMinutes();
@@ -844,7 +898,7 @@ export default function Home() {
     setDailyUsage(baseUsage);
   }, []);
   
-  // 动态增长今日使用次数
+  // Dynamically increase daily usage count
   useEffect(() => {
     const interval = setInterval(() => {
       setDailyUsage(prev => {
@@ -882,7 +936,7 @@ export default function Home() {
           {/* Left Sidebar - Tool List */}
           <div className="lg:col-span-1">
             <div className="bg-[#1a1a1a] border border-[#d4af37]/20 rounded-xl p-4 sticky top-24">
-              <h2 className="text-lg font-bold mb-4 text-[#d4af37]">工具列表</h2>
+              <h2 className="text-lg font-bold mb-4 text-[#d4af37]">Tools</h2>
               <div className="space-y-2">
                 {tools.map((tool) => (
                   <button
@@ -903,9 +957,9 @@ export default function Home() {
                         <p className={`text-xs truncate ${
                           selectedTool.id === tool.id ? "text-[#d4af37]/70" : "text-gray-500"
                         }`}>
-                          {tool.category === "privacy" ? "隐私工具" : 
-                           tool.category === "wallet" ? "钱包工具" :
-                           tool.category === "defi" ? "DeFi 工具" : "数据分析"}
+                          {tool.category === "privacy" ? "Privacy" : 
+                           tool.category === "wallet" ? "Wallet" :
+                           tool.category === "defi" ? "DeFi" : "Analytics"}
                         </p>
                       </div>
                       {tool.status === "active" && (
@@ -929,11 +983,11 @@ export default function Home() {
                     <div className="grid grid-cols-2 gap-2 mb-4">
                       <div className="bg-[#0a0a0a] border border-[#d4af37]/20 p-2 rounded text-center">
                         <div className="text-lg font-bold text-[#d4af37]">{dailyUsage}</div>
-                        <div className="text-xs text-gray-400">今日使用</div>
+                        <div className="text-xs text-gray-400">Daily Usage</div>
                       </div>
                       <div className="bg-[#0a0a0a] border border-[#10b981]/20 p-2 rounded text-center">
                         <div className="text-lg font-bold text-[#10b981]">{selectedTool.users}</div>
-                        <div className="text-xs text-gray-400">总用户</div>
+                        <div className="text-xs text-gray-400">Total Users</div>
                       </div>
                     </div>
                   </>
