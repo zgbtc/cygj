@@ -7,7 +7,7 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 try:
-    from mixer_engine import MixerEngine
+    from advanced_mixer_engine import AdvancedMixerEngine, MIXING_MODES
     MIXER_AVAILABLE = True
 except ImportError as e:
     MIXER_AVAILABLE = False
@@ -40,6 +40,7 @@ class handler(BaseHTTPRequestHandler):
             
             # 获取参数
             chain = data.get('chain', 'bsc_testnet')
+            mode = data.get('mode', 'fast')  # 混币模式: fast, privacy, ultimate
             from_private_key = data.get('from_private_key')
             to_address = data.get('to_address')
             total_amount = data.get('total_amount')
@@ -57,8 +58,8 @@ class handler(BaseHTTPRequestHandler):
             if not total_amount:
                 raise Exception('缺少总金额')
             
-            # 创建混币器引擎
-            mixer = MixerEngine(chain)
+            # 创建高级混币器引擎
+            mixer = AdvancedMixerEngine(chain, mode=mode)
             
             # 创建混币计划
             plan = mixer.create_mixing_plan(

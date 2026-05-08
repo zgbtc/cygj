@@ -103,9 +103,38 @@ const tools = [
   }
 ];
 
+// 混币模式配置
+const MIXING_MODES = {
+  fast: {
+    name: "快速模式",
+    icon: "⚡",
+    privacy: "⭐⭐⭐",
+    time: "30 分钟",
+    description: "1-3秒延迟，快速完成",
+    color: "blue"
+  },
+  privacy: {
+    name: "隐私模式",
+    icon: "🔒",
+    privacy: "⭐⭐⭐⭐⭐",
+    time: "1-2 天",
+    description: "5-30分钟延迟 + Tor",
+    color: "purple"
+  },
+  ultimate: {
+    name: "极致隐私",
+    icon: "🛡️",
+    privacy: "⭐⭐⭐⭐⭐⭐⭐",
+    time: "3-7 天",
+    description: "跨链混币 + Tor + 长延迟",
+    color: "red"
+  }
+};
+
 // 鬼魅多跳混币器组件
 function StealthTransferApp() {
   const [chain, setChain] = useState("bsc_testnet");
+  const [mode, setMode] = useState("fast");
   const [privateKey, setPrivateKey] = useState("");
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
@@ -128,6 +157,7 @@ function StealthTransferApp() {
 
     try {
       setProgress(prev => [...prev, "🚀 开始混币..."]);
+      setProgress(prev => [...prev, `🎯 模式: ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
       setProgress(prev => [...prev, `📊 跳数: ${numHops}`]);
       
       const response = await fetch(`${API_URL}/api/mixer`, {
@@ -135,6 +165,7 @@ function StealthTransferApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chain,
+          mode,
           from_private_key: privateKey,
           to_address: toAddress,
           total_amount: parseFloat(amount),
@@ -180,6 +211,55 @@ function StealthTransferApp() {
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <h2 className="text-xl font-bold mb-6">鬼魅多跳混币器</h2>
+      
+      {/* Mixing Mode Selection */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-3">
+          混币模式
+        </label>
+        <div className="grid grid-cols-3 gap-3">
+          {Object.entries(MIXING_MODES).map(([key, modeConfig]) => (
+            <button
+              key={key}
+              onClick={() => setMode(key)}
+              className={`p-4 rounded-lg border-2 transition ${
+                mode === key
+                  ? `border-${modeConfig.color}-500 bg-${modeConfig.color}-50`
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}
+            >
+              <div className="text-3xl mb-2">{modeConfig.icon}</div>
+              <div className="font-semibold text-sm mb-1">{modeConfig.name}</div>
+              <div className="text-xs text-gray-600 mb-2">{modeConfig.description}</div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-yellow-600">{modeConfig.privacy}</span>
+                <span className="text-gray-500">⏱️ {modeConfig.time}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+        
+        {/* Mode Info */}
+        <div className={`mt-3 p-3 rounded-lg text-xs ${
+          mode === 'fast' ? 'bg-blue-50 border border-blue-200' :
+          mode === 'privacy' ? 'bg-purple-50 border border-purple-200' :
+          'bg-red-50 border border-red-200'
+        }`}>
+          <div className="flex items-start space-x-2">
+            <span className="text-lg">{MIXING_MODES[mode as keyof typeof MIXING_MODES].icon}</span>
+            <div>
+              <p className="font-semibold mb-1">
+                {MIXING_MODES[mode as keyof typeof MIXING_MODES].name}
+              </p>
+              <p className="text-gray-700">
+                {mode === 'fast' && '适合快速测试，隐私性中等'}
+                {mode === 'privacy' && '使用 Tor 代理 + 长时间延迟，隐私性高'}
+                {mode === 'ultimate' && '跨链混币 + Tor + 超长延迟，隐私性极高，适合大额资金'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
       
       {/* Chain Selection */}
       <div className="mb-4">
