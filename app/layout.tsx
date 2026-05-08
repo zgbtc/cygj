@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Crypto Tools Hub - 加密工具聚合平台",
-  description: "精选优质加密货币工具，助力您的 Web3 之旅",
+  title: "CYGJ - 鬼魅多跳混币器 | 极致隐私保护",
+  description: "唯一无法追踪的混币器，N次交叉转账跨链100%隐藏资金路径，支持Tor网络和跨链混币，安全保护隐私",
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({
