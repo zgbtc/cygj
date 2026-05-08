@@ -10,6 +10,7 @@ export default function StealthTransferPage() {
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
   const [numHops, setNumHops] = useState(100);
+  const [customHops, setCustomHops] = useState("");
   const [mnemonic, setMnemonic] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -274,9 +275,12 @@ export default function StealthTransferPage() {
                   {[10, 50, 100, 500, 1000].map((num) => (
                     <button
                       key={num}
-                      onClick={() => setNumHops(num)}
+                      onClick={() => {
+                        setNumHops(num);
+                        setCustomHops("");
+                      }}
                       className={`px-4 py-2 rounded-lg font-medium transition ${
-                        numHops === num
+                        numHops === num && customHops === ""
                           ? "bg-purple-600 text-white"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
@@ -289,22 +293,13 @@ export default function StealthTransferPage() {
                     min="10"
                     max="100000"
                     step="1"
-                    value={numHops}
+                    value={customHops}
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === '' || val === '0') {
-                        // 允许清空，但不更新 state，等用户输入完整数字
-                        return;
-                      }
-                      const num = parseInt(val);
-                      if (!isNaN(num)) {
-                        setNumHops(Math.max(10, Math.min(100000, num)));
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // 失去焦点时，如果为空则设为默认值
-                      if (e.target.value === '' || parseInt(e.target.value) < 10) {
-                        setNumHops(10);
+                      setCustomHops(val);
+                      if (val !== '' && !isNaN(parseInt(val))) {
+                        const num = Math.max(10, Math.min(100000, parseInt(val)));
+                        setNumHops(num);
                       }
                     }}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
