@@ -292,10 +292,19 @@ export default function StealthTransferPage() {
                     value={numHops}
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === '') {
-                        setNumHops(10000);
-                      } else {
-                        setNumHops(Math.max(10, Math.min(100000, parseInt(val))));
+                      if (val === '' || val === '0') {
+                        // 允许清空，但不更新 state，等用户输入完整数字
+                        return;
+                      }
+                      const num = parseInt(val);
+                      if (!isNaN(num)) {
+                        setNumHops(Math.max(10, Math.min(100000, num)));
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // 失去焦点时，如果为空则设为默认值
+                      if (e.target.value === '' || parseInt(e.target.value) < 10) {
+                        setNumHops(10);
                       }
                     }}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
