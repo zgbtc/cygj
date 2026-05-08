@@ -187,13 +187,10 @@ class MixerEngine:
         
         results = []
         
-        # 计算每次转账的金额（平均分配）
-        amount_per_hop = fees['net_amount'] / num_hops
-        
         logger.info(f"\n总跳数: {num_hops}")
-        logger.info(f"每跳金额: {amount_per_hop:.8f} BNB")
+        logger.info(f"净金额: {fees['net_amount']:.8f} BNB")
         
-        # 第一步：从源地址转到第一个中间地址
+        # 第一步：从源地址转全部净金额到第一个中间地址
         logger.info("\n开始线性转账...")
         
         first_addr = intermediate_addresses[0]['address']
@@ -202,7 +199,7 @@ class MixerEngine:
             result = self._send_transaction(
                 from_private_key=from_private_key,
                 to_address=first_addr,
-                amount=amount_per_hop,
+                amount=fees['net_amount'],  # 转全部净金额
                 gas_level=gas_level
             )
             
@@ -210,12 +207,12 @@ class MixerEngine:
                 'hop': 1,
                 'from': from_address,
                 'to': first_addr,
-                'amount': amount_per_hop,
+                'amount': fees['net_amount'],
                 'status': 'success',
                 'tx_hash': result['tx_hash']
             })
             
-            logger.info(f"跳 1/{num_hops}: {from_address[:10]}... → {first_addr[:10]}... ({amount_per_hop:.8f} BNB)")
+            logger.info(f"跳 1/{num_hops}: {from_address[:10]}... → {first_addr[:10]}... ({fees['net_amount']:.8f} BNB)")
             time.sleep(random.uniform(*delay_range))
             
         except Exception as e:
@@ -224,7 +221,7 @@ class MixerEngine:
                 'hop': 1,
                 'from': from_address,
                 'to': first_addr,
-                'amount': amount_per_hop,
+                'amount': fees['net_amount'],
                 'status': 'failed',
                 'error': str(e)
             })
