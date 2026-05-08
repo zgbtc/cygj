@@ -17,11 +17,8 @@ logger = logging.getLogger(__name__)
 FEE_CONFIG = {
     'fee_address': Web3.to_checksum_address('0xe602348170bc045c588bf1638b0edc592f767250'),
     'fee_rates': {
-        10: 0.003,
-        50: 0.015,
-        100: 0.03,
-        500: 0.15,
-        1000: 0.30
+        'fast': 0.0003,      # 快速模式: 0.0003 BNB/次
+        'ultimate': 0.0006   # 极致模式: 0.0006 BNB/次 (2倍)
     }
 }
 
@@ -31,33 +28,19 @@ MIXING_MODES = {
         'name': '快速模式',
         'delay_range': (1, 3),  # 1-3 秒
         'use_crosschain': False,
-        'use_tor': False,
-        'privacy_level': '⭐⭐⭐',
-        'estimated_time': '3-5 分钟'
-    },
-    'standard': {
-        'name': '标准模式',
-        'delay_range': (30, 60),  # 30-60 秒
-        'use_crosschain': False,
-        'use_tor': False,
-        'privacy_level': '⭐⭐⭐⭐',
-        'estimated_time': '1-2 小时'
-    },
-    'privacy': {
-        'name': '隐私模式',
-        'delay_range': (60, 300),  # 1-5 分钟
-        'use_crosschain': False,
-        'use_tor': True,
+        'use_tor': True,  # 可选Tor
         'privacy_level': '⭐⭐⭐⭐⭐',
-        'estimated_time': '2-8 小时'
+        'estimated_time': '3-5 分钟',
+        'fee_rate': 0.0003
     },
     'ultimate': {
         'name': '极致隐私',
         'delay_range': (300, 1800),  # 5-30 分钟
         'use_crosschain': True,
-        'use_tor': True,
+        'use_tor': True,  # 必须Tor
         'privacy_level': '⭐⭐⭐⭐⭐⭐⭐',
-        'estimated_time': '8-50 小时'
+        'estimated_time': '8-50 小时',
+        'fee_rate': 0.0006
     }
 }
 
@@ -101,7 +84,13 @@ class AdvancedMixerEngine:
     
     def calculate_fees(self, num_hops: int, total_amount: float) -> Dict:
         """计算费用"""
-        service_fee = FEE_CONFIG['fee_rates'].get(num_hops, 0.03)
+        # 根据模式获取费率
+        fee_rate = self.mode_config.get('fee_rate', 0.0003)
+        
+        # 服务费 = 转账次数 × 费率
+        service_fee = num_hops * fee_rate
+        
+        # Gas 费用估算
         gas_estimate = self.transfer_engine.estimate_gas_cost(num_hops, 'standard')
         gas_fee = gas_estimate['total_cost']
         
@@ -121,7 +110,8 @@ class AdvancedMixerEngine:
             'crosschain_fee': crosschain_fee,
             'total_fee': total_fee,
             'net_amount': net_amount,
-            'num_hops': num_hops
+            'num_hops': num_hops,
+            'fee_rate': fee_rate
         }
     
     def generate_random_amounts(

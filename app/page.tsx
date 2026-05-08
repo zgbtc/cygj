@@ -108,26 +108,11 @@ const MIXING_MODES = {
   fast: {
     name: "快速模式",
     icon: "⚡",
-    privacy: "⭐⭐⭐",
-    time: "3-5 分钟",
-    description: "1-3秒延迟，快速完成",
-    color: "blue"
-  },
-  standard: {
-    name: "标准模式",
-    icon: "🔷",
-    privacy: "⭐⭐⭐⭐",
-    time: "1-2 小时",
-    description: "30-60秒延迟，平衡速度和隐私",
-    color: "green"
-  },
-  privacy: {
-    name: "隐私模式",
-    icon: "🔒",
     privacy: "⭐⭐⭐⭐⭐",
-    time: "2-8 小时",
-    description: "1-5分钟延迟 + Tor",
-    color: "purple"
+    time: "3-5 分钟",
+    description: "1-3秒延迟 + Tor隐藏IP",
+    color: "blue",
+    feeRate: 0.0003
   },
   ultimate: {
     name: "极致隐私",
@@ -135,7 +120,8 @@ const MIXING_MODES = {
     privacy: "⭐⭐⭐⭐⭐⭐⭐",
     time: "8-50 小时",
     description: "跨链混币 + Tor + 长延迟",
-    color: "red"
+    color: "red",
+    feeRate: 0.0006
   }
 };
 
@@ -225,7 +211,7 @@ function StealthTransferApp() {
         <label className="block text-sm font-medium text-gray-700 mb-3">
           混币模式
         </label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {Object.entries(MIXING_MODES).map(([key, modeConfig]) => (
             <button
               key={key}
@@ -243,6 +229,9 @@ function StealthTransferApp() {
                 <span className="text-yellow-600">{modeConfig.privacy}</span>
                 <span className="text-gray-500">⏱️ {modeConfig.time}</span>
               </div>
+              <div className="mt-2 text-xs text-purple-600 font-semibold">
+                {modeConfig.feeRate} BNB/次
+              </div>
             </button>
           ))}
         </div>
@@ -250,8 +239,6 @@ function StealthTransferApp() {
         {/* Mode Info */}
         <div className={`mt-3 p-3 rounded-lg text-xs ${
           mode === 'fast' ? 'bg-blue-50 border border-blue-200' :
-          mode === 'standard' ? 'bg-green-50 border border-green-200' :
-          mode === 'privacy' ? 'bg-purple-50 border border-purple-200' :
           'bg-red-50 border border-red-200'
         }`}>
           <div className="flex items-start space-x-2">
@@ -261,10 +248,8 @@ function StealthTransferApp() {
                 {MIXING_MODES[mode as keyof typeof MIXING_MODES].name}
               </p>
               <p className="text-gray-700">
-                {mode === 'fast' && '适合快速测试，3-5分钟完成'}
-                {mode === 'standard' && '平衡速度和隐私，1-2小时完成'}
-                {mode === 'privacy' && '使用 Tor 代理 + 长时间延迟，2-8小时完成'}
-                {mode === 'ultimate' && '跨链混币 + Tor + 超长延迟，8-50小时完成，适合大额资金'}
+                {mode === 'fast' && '多路径混币 + Tor隐藏IP（可选），3-5分钟完成'}
+                {mode === 'ultimate' && '跨链混币 + Tor隐藏IP + 超长延迟，8-50小时完成，适合大额资金'}
               </p>
             </div>
           </div>
@@ -377,7 +362,10 @@ function StealthTransferApp() {
           <div>
             <p className="text-gray-600 text-xs">服务费</p>
             <p className="font-semibold">
-              {numHops === 10 ? "0.003" : numHops === 50 ? "0.015" : numHops === 100 ? "0.03" : numHops === 500 ? "0.15" : "0.30"} BNB
+              {(numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)).toFixed(4)} BNB
+            </p>
+            <p className="text-xs text-gray-500">
+              {numHops} 次 × {MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003} BNB
             </p>
           </div>
           <div>
@@ -387,13 +375,13 @@ function StealthTransferApp() {
           <div>
             <p className="text-gray-600 text-xs">总费用</p>
             <p className="font-semibold text-purple-600">
-              ~{(parseFloat(numHops === 10 ? "0.003" : numHops === 50 ? "0.015" : numHops === 100 ? "0.03" : numHops === 500 ? "0.15" : "0.30") + numHops * 0.00021).toFixed(5)} BNB
+              ~{((numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) + numHops * 0.00021).toFixed(5)} BNB
             </p>
           </div>
           <div>
             <p className="text-gray-600 text-xs">预计收到</p>
             <p className="font-semibold text-green-600">
-              {amount ? (parseFloat(amount) - parseFloat(numHops === 10 ? "0.003" : numHops === 50 ? "0.015" : numHops === 100 ? "0.03" : numHops === 500 ? "0.15" : "0.30") - numHops * 0.00021).toFixed(5) : "0"} BNB
+              {amount ? (parseFloat(amount) - (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) - numHops * 0.00021).toFixed(5) : "0"} BNB
             </p>
           </div>
         </div>
