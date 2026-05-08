@@ -9,7 +9,7 @@ const tools = [
     id: 1,
     name: "鬼魅无影混币引擎",
     category: "privacy",
-    description: "唯一无法追踪的混币器，N次交叉转账多链100%隐藏资金路径，IP无法追踪，绝对安全保护隐私",
+    description: "68+条链,唯一无法追踪的混币器，N次交叉转账多链100%隐藏资金路径，IP无法追踪，绝对安全保护隐私",
     icon: "🎭",
     chains: ["BSC", "ETH"],
     status: "active",
