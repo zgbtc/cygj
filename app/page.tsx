@@ -211,21 +211,50 @@ function StealthTransferApp() {
         <label className="block text-sm font-medium text-gray-700 mb-3">
           混币模式
         </label>
-        <div className="grid grid-cols-2 gap-3">
-          {Object.entries(MIXING_MODES).map(([key, modeConfig]) => (
-            <button
-              key={key}
-              onClick={() => setMode(key)}
-              className={`p-4 rounded-lg border-2 transition ${
-                mode === key
-                  ? `border-${modeConfig.color}-500 bg-${modeConfig.color}-50`
-                  : "border-gray-200 bg-white hover:border-gray-300"
-              }`}
-            >
-              <div className="font-semibold text-sm mb-1">{modeConfig.name}</div>
-              <div className="text-xs text-gray-600">{modeConfig.description}</div>
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-4">
+          {/* 快速模式 */}
+          <button
+            onClick={() => setMode('fast')}
+            className={`relative p-5 rounded-xl transition-all duration-300 overflow-hidden group ${
+              mode === 'fast'
+                ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/50"
+                : "bg-gradient-to-br from-blue-400 to-blue-500 hover:shadow-lg hover:shadow-blue-400/40 hover:-translate-y-0.5"
+            }`}
+          >
+            {/* 发光效果 */}
+            <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-500 ${
+              mode === 'fast' ? 'opacity-10' : ''
+            }`}></div>
+            
+            <div className="relative z-10">
+              <div className="font-bold text-base mb-2 text-white">快速模式</div>
+              <div className="text-xs text-blue-50 leading-relaxed">
+                交叉混淆 · 隐藏IP · 快速到账
+              </div>
+            </div>
+          </button>
+
+          {/* 极致隐私 */}
+          <button
+            onClick={() => setMode('ultimate')}
+            className={`relative p-5 rounded-xl transition-all duration-300 overflow-hidden group ${
+              mode === 'ultimate'
+                ? "bg-gradient-to-br from-purple-900 via-purple-800 to-black shadow-lg shadow-purple-900/50"
+                : "bg-gradient-to-br from-purple-800 via-purple-700 to-gray-900 hover:shadow-lg hover:shadow-purple-800/40 hover:-translate-y-0.5"
+            }`}
+          >
+            {/* 发光效果 */}
+            <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-purple-300 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-500 ${
+              mode === 'ultimate' ? 'opacity-10' : ''
+            }`}></div>
+            
+            <div className="relative z-10">
+              <div className="font-bold text-base mb-2 text-white">极致隐私</div>
+              <div className="text-xs text-purple-100 leading-relaxed">
+                多链幽灵模式 · 完全匿名 · 无法追踪
+              </div>
+            </div>
+          </button>
         </div>
       </div>
       
