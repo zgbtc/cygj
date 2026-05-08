@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隐私转账 - Stealth Transfer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 隐私转账</h1>
+            <p>自动生成多个地址，分散资金，保护隐私</p>
+            <div style="margin-top: 10px;">
+                <a href="/" style="color: white; text-decoration: underline;">← 返回普通转账</a>
+            </div>
+        </header>
+
+        <div class="card">
+            <h2>工作原理</h2>
+            <p class="hint">
+                从一个助记词生成 10-10000 个地址，将资金分散到这些地址中。<br>
+                这样可以隐藏资金来源，保护隐私。所有地址都可以用助记词恢复。
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>1. 选择网络</h2>
+            <select id="chainSelect" class="input-field">
+                <option value="bsc">BSC 主网 (BNB)</option>
+                <option value="bsc_testnet">BSC 测试网 (tBNB)</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <h2>2. 源地址私钥</h2>
+            <p class="hint">从这个地址发送资金</p>
+            <input type="password" id="fromPrivateKey" class="input-field" placeholder="输入私钥 (0x...)">
+            <button onclick="checkBalance()" class="btn btn-secondary">查询余额</button>
+            <div id="balanceInfo" class="info-box"></div>
+        </div>
+
+        <div class="card">
+            <h2>3. 转账设置</h2>
+            
+            <label class="hint">总金额</label>
+            <input type="number" id="totalAmount" class="input-field" placeholder="例如: 1.0" step="0.001">
+            
+            <label class="hint">目标地址数量 (10-10000)</label>
+            <input type="number" id="numAddresses" class="input-field" placeholder="例如: 100" min="10" max="10000" value="100">
+            
+            <label class="hint">分配方式</label>
+            <select id="distribution" class="input-field">
+                <option value="random">随机分配（推荐，更隐私）</option>
+                <option value="equal">平均分配</option>
+            </select>
+            
+            <label class="hint">助记词（可选，留空自动生成）</label>
+            <input type="text" id="mnemonic" class="input-field" placeholder="留空自动生成新助记词">
+        </div>
+
+        <div class="card">
+            <h2>4. Gas 设置</h2>
+            <div class="gas-options">
+                <label class="gas-option">
+                    <input type="radio" name="gasLevel" value="slow">
+                    <span>慢速 (3 Gwei)</span>
+                </label>
+                <label class="gas-option">
+                    <input type="radio" name="gasLevel" value="standard" checked>
+                    <span>标准 (5 Gwei)</span>
+                </label>
+                <label class="gas-option">
+                    <input type="radio" name="gasLevel" value="fast">
+                    <span>快速 (10 Gwei)</span>
+                </label>
+                <label class="gas-option">
+                    <input type="radio" name="gasLevel" value="instant">
+                    <span>即时 (20 Gwei)</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="card">
+            <button onclick="previewPlan()" class="btn btn-secondary" style="margin-bottom: 10px;">预览转账计划</button>
+            <button onclick="executeStealthTransfer()" class="btn btn-primary">执行隐私转账</button>
+        </div>
+
+        <div id="planPreview" class="card" style="display: none;">
+            <h2>转账计划预览</h2>
+            <div id="planContent"></div>
+        </div>
+
+        <div id="results" class="card" style="display: none;">
+            <h2>转账结果</h2>
+            <div id="mnemonicDisplay" class="info-box success" style="display: block;">
+                <strong>⚠️ 重要：请保存助记词！</strong><br>
+                <span id="mnemonicText" style="font-family: monospace; font-size: 16px;"></span><br>
+                <button onclick="copyMnemonic()" class="btn btn-secondary" style="margin-top: 10px;">复制助记词</button>
+            </div>
+            <div id="resultsList"></div>
+        </div>
+    </div>
+
+    <script src="stealth.js"></script>
+</body>
+</html>

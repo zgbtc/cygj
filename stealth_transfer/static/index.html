@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隐私批量转账 - Stealth Transfer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 隐私批量转账</h1>
+            <p>支持 10-10000 个地址批量转账</p>
+            <div style="margin-top: 15px;">
+                <a href="/stealth.html" style="display: inline-block; padding: 10px 20px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                    🎭 隐私转账模式 →
+                </a>
+            </div>
+        </header>
+
+        <div class="card">
+            <h2>1. 选择网络</h2>
+            <select id="chainSelect" class="input-field">
+                <option value="bsc">BSC 主网 (BNB)</option>
+                <option value="bsc_testnet">BSC 测试网 (tBNB)</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <h2>2. 连接钱包</h2>
+            <input type="password" id="privateKey" class="input-field" placeholder="输入私钥 (0x...)">
+            <button onclick="checkBalance()" class="btn btn-secondary">查询余额</button>
+            <div id="balanceInfo" class="info-box"></div>
+        </div>
+
+        <div class="card">
+            <h2>3. 接收地址列表</h2>
+            <p class="hint">每行一个地址，格式：地址,金额</p>
+            <textarea id="recipients" class="textarea-field" rows="10" placeholder="0x1234...,0.01
+0x5678...,0.02
+..."></textarea>
+            <div class="stats">
+                <span>地址数量: <strong id="addressCount">0</strong></span>
+                <span>总金额: <strong id="totalAmount">0</strong> BNB</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>4. Gas 设置</h2>
+            <div class="gas-options">
+                <label class="gas-option">
+                    <input type="radio" name="gasLevel" value="slow">
+                    <span>慢速 (3 Gwei)</span>
+                </label>
+                <label class="gas-option">
+                    <input type="radio" name="gasLevel" value="standard" checked>
+                    <span>标准 (5 Gwei)</span>
+                </label>
+                <label class="gas-option">
+                    <input type="radio" name="gasLevel" value="fast">
+                    <span>快速 (10 Gwei)</span>
+                </label>
+                <label class="gas-option">
+                    <input type="radio" name="gasLevel" value="instant">
+                    <span>即时 (20 Gwei)</span>
+                </label>
+            </div>
+            <button onclick="estimateCost()" class="btn btn-secondary">估算费用</button>
+            <div id="estimateInfo" class="info-box"></div>
+        </div>
+
+        <div class="card">
+            <button onclick="executeTransfer()" class="btn btn-primary">执行批量转账</button>
+        </div>
+
+        <div id="results" class="card" style="display: none;">
+            <h2>转账结果</h2>
+            <div id="resultsList"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

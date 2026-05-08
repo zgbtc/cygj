@@ -1,65 +1,463 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+// 工具数据
+const tools = [
+  {
+    id: 1,
+    name: "Stealth Transfer",
+    category: "privacy",
+    description: "多跳混币器，通过交叉转账隐藏资金路径，保护隐私",
+    icon: "🎭",
+    features: [
+      "10-1000 跳可选",
+      "自动路径生成",
+      "支持 BSC/ETH",
+      "服务费固定"
+    ],
+    chains: ["BSC", "ETH"],
+    status: "active",
+    rating: 4.8,
+    users: "1.2K+"
+  },
+  {
+    id: 2,
+    name: "HD Wallet Generator",
+    category: "wallet",
+    description: "BIP44 标准 HD 钱包生成器，从助记词生成多个地址",
+    icon: "🔐",
+    features: [
+      "BIP44 标准",
+      "批量生成地址",
+      "兼容 MetaMask",
+      "安全可靠"
+    ],
+    chains: ["BSC", "ETH", "Polygon"],
+    status: "coming-soon",
+    rating: 4.9,
+    users: "3.5K+"
+  },
+  {
+    id: 3,
+    name: "Batch Transfer",
+    category: "defi",
+    description: "批量转账工具，一次性向多个地址发送代币",
+    icon: "💸",
+    features: [
+      "10-10000 地址",
+      "CSV 导入",
+      "Gas 优化",
+      "实时追踪"
+    ],
+    chains: ["BSC", "ETH", "Polygon"],
+    status: "coming-soon",
+    rating: 4.7,
+    users: "2.8K+"
+  },
+  {
+    id: 4,
+    name: "Token Analyzer",
+    category: "analytics",
+    description: "代币分析工具，查看持仓分布、交易历史等数据",
+    icon: "📊",
+    features: [
+      "持仓分析",
+      "交易历史",
+      "价格图表",
+      "智能合约审计"
+    ],
+    chains: ["BSC", "ETH"],
+    status: "coming-soon",
+    rating: 0,
+    users: "Soon"
+  },
+  {
+    id: 5,
+    name: "Gas Tracker",
+    category: "analytics",
+    description: "实时 Gas 价格追踪，帮助您选择最佳交易时机",
+    icon: "⛽",
+    features: [
+      "实时 Gas 价格",
+      "历史数据",
+      "价格预测",
+      "通知提醒"
+    ],
+    chains: ["BSC", "ETH", "Polygon"],
+    status: "coming-soon",
+    rating: 0,
+    users: "Soon"
+  },
+  {
+    id: 6,
+    name: "NFT Batch Mint",
+    category: "defi",
+    description: "批量铸造 NFT 工具，支持多种标准",
+    icon: "🎨",
+    features: [
+      "ERC-721/1155",
+      "批量铸造",
+      "元数据管理",
+      "IPFS 上传"
+    ],
+    chains: ["ETH", "Polygon"],
+    status: "coming-soon",
+    rating: 0,
+    users: "Soon"
+  }
+];
+
+// Stealth Transfer 组件
+function StealthTransferApp() {
+  const [chain, setChain] = useState("bsc_testnet");
+  const [privateKey, setPrivateKey] = useState("");
+  const [toAddress, setToAddress] = useState("");
+  const [amount, setAmount] = useState("");
+  const [numHops, setNumHops] = useState(100);
+  const [mnemonic, setMnemonic] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const handleExecute = async () => {
+    if (!privateKey || !toAddress || !amount) {
+      alert("请填写所有必填字段");
+      return;
+    }
+
+    setIsLoading(true);
+    setResult(null);
+
+    try {
+      const response = await fetch("http://localhost:5000/api/mixer/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chain,
+          from_private_key: privateKey,
+          to_address: toAddress,
+          total_amount: parseFloat(amount),
+          num_hops: numHops,
+          mnemonic: mnemonic || undefined,
+          gas_level: "standard"
+        })
+      });
+
+      const data = await response.json();
+      setResult(data);
+    } catch (error) {
+      setResult({ success: false, error: String(error) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg p-6">
+      <h2 className="text-xl font-bold mb-6">BSC Stealth Transfer</h2>
+      
+      {/* Chain Selection */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          选择网络
+        </label>
+        <select
+          value={chain}
+          onChange={(e) => setChain(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+        >
+          <option value="bsc_testnet">BSC Testnet</option>
+          <option value="bsc">BSC Mainnet</option>
+          <option value="eth">Ethereum</option>
+        </select>
+      </div>
+
+      {/* Private Key */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          源地址私钥 *
+        </label>
+        <input
+          type="password"
+          value={privateKey}
+          onChange={(e) => setPrivateKey(e.target.value)}
+          placeholder="输入私钥"
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+        />
+      </div>
+
+      {/* Target Address */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          目标地址 *
+        </label>
+        <input
+          type="text"
+          value={toAddress}
+          onChange={(e) => setToAddress(e.target.value)}
+          placeholder="0x..."
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+        />
+      </div>
+
+      {/* Amount */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          转账金额 (BNB) *
+        </label>
+        <input
+          type="number"
+          step="0.001"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0.1"
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+        />
+      </div>
+
+      {/* Number of Hops */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          跳数: {numHops}
+        </label>
+        <div className="flex gap-2 mb-2">
+          {[10, 50, 100, 500, 1000].map((num) => (
+            <button
+              key={num}
+              onClick={() => setNumHops(num)}
+              className={`px-3 py-1 rounded-lg font-medium transition text-sm ${
+                numHops === num
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {num}
+            </button>
+          ))}
+        </div>
+        <input
+          type="range"
+          min="10"
+          max="1000"
+          step="10"
+          value={numHops}
+          onChange={(e) => setNumHops(parseInt(e.target.value))}
+          className="w-full"
+        />
+      </div>
+
+      {/* Mnemonic (Optional) */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          助记词（可选）
+        </label>
+        <input
+          type="text"
+          value={mnemonic}
+          onChange={(e) => setMnemonic(e.target.value)}
+          placeholder="留空自动生成"
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+        />
+      </div>
+
+      {/* Fee Estimate */}
+      <div className="bg-gray-50 p-4 rounded-lg mb-4">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <p className="text-gray-600 text-xs">服务费</p>
+            <p className="font-semibold">
+              {numHops === 10 ? "0.003" : numHops === 50 ? "0.015" : numHops === 100 ? "0.03" : numHops === 500 ? "0.15" : "0.30"} BNB
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-600 text-xs">预估 Gas</p>
+            <p className="font-semibold">~{(numHops * 0.00021).toFixed(5)} BNB</p>
+          </div>
+          <div>
+            <p className="text-gray-600 text-xs">总费用</p>
+            <p className="font-semibold text-purple-600">
+              ~{(parseFloat(numHops === 10 ? "0.003" : numHops === 50 ? "0.015" : numHops === 100 ? "0.03" : numHops === 500 ? "0.15" : "0.30") + numHops * 0.00021).toFixed(5)} BNB
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-600 text-xs">预计收到</p>
+            <p className="font-semibold text-green-600">
+              {amount ? (parseFloat(amount) - parseFloat(numHops === 10 ? "0.003" : numHops === 50 ? "0.015" : numHops === 100 ? "0.03" : numHops === 500 ? "0.15" : "0.30") - numHops * 0.00021).toFixed(5) : "0"} BNB
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Execute Button */}
+      <button
+        onClick={handleExecute}
+        disabled={isLoading || !privateKey || !toAddress || !amount}
+        className={`w-full py-3 rounded-lg font-semibold transition ${
+          isLoading || !privateKey || !toAddress || !amount
+            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+            : "bg-purple-600 text-white hover:bg-purple-700"
+        }`}
+      >
+        {isLoading ? "执行中..." : "🚀 执行混币"}
+      </button>
+
+      {/* Result */}
+      {result && (
+        <div className={`mt-4 p-4 rounded-lg text-sm ${result.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+          <h3 className={`font-semibold mb-2 ${result.success ? "text-green-800" : "text-red-800"}`}>
+            {result.success ? "✅ 执行成功" : "❌ 执行失败"}
+          </h3>
+          {result.success ? (
+            <div className="text-xs space-y-1">
+              <p>总交易数: {result.total_transactions}</p>
+              <p>成功: {result.success_count}</p>
+              <p>失败: {result.failed_count}</p>
+              <p>目标地址收到: {result.total_collected} BNB</p>
+              <p>服务费: {result.service_fee} BNB</p>
+            </div>
+          ) : (
+            <p className="text-xs text-red-700">{result.error}</p>
+          )}
+        </div>
+      )}
+
+      {/* Warning */}
+      <div className="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-3">
+        <p className="text-xs text-yellow-700">
+          <strong>提示：</strong> 请妥善保管私钥，建议先在测试网测试
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// 即将推出组件
+function ComingSoonApp({ tool }: { tool: any }) {
+  return (
+    <div className="bg-white rounded-xl shadow-lg p-6 text-center">
+      <div className="text-6xl mb-4">{tool.icon}</div>
+      <h2 className="text-2xl font-bold mb-2">{tool.name}</h2>
+      <p className="text-gray-600 mb-6">{tool.description}</p>
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p className="text-yellow-700 font-semibold">🚧 即将推出</p>
+        <p className="text-sm text-gray-600 mt-2">敬请期待...</p>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
+  const [selectedTool, setSelectedTool] = useState(tools[0]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
+        <nav className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
+              <span className="text-2xl font-bold text-gray-800">Crypto Tools Hub</span>
+            </div>
+            <div className="hidden md:flex space-x-6">
+              <a href="#" className="text-gray-600 hover:text-purple-600">工具</a>
+              <a href="#" className="text-gray-600 hover:text-purple-600">文档</a>
+              <a href="#" className="text-gray-600 hover:text-purple-600">关于</a>
+            </div>
+          </div>
+        </nav>
+      </header>
+
+      <div className="container mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Left Sidebar - Tool List */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-lg p-4 sticky top-24">
+              <h2 className="text-lg font-bold mb-4 text-gray-800">工具列表</h2>
+              <div className="space-y-2">
+                {tools.map((tool) => (
+                  <button
+                    key={tool.id}
+                    onClick={() => setSelectedTool(tool)}
+                    className={`w-full text-left p-3 rounded-lg transition ${
+                      selectedTool.id === tool.id
+                        ? "bg-purple-600 text-white"
+                        : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-2xl">{tool.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{tool.name}</p>
+                        <p className={`text-xs truncate ${
+                          selectedTool.id === tool.id ? "text-purple-100" : "text-gray-500"
+                        }`}>
+                          {tool.category === "privacy" ? "隐私工具" : 
+                           tool.category === "wallet" ? "钱包工具" :
+                           tool.category === "defi" ? "DeFi 工具" : "数据分析"}
+                        </p>
+                      </div>
+                      {tool.status === "active" && (
+                        <span className="flex-shrink-0 w-2 h-2 bg-green-400 rounded-full"></span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Tool Info */}
+              <div className="mt-6 pt-6 border-t">
+                <div className="text-center mb-4">
+                  <div className="text-4xl mb-2">{selectedTool.icon}</div>
+                  <h3 className="font-bold text-sm">{selectedTool.name}</h3>
+                  <p className="text-xs text-gray-600 mt-1">{selectedTool.description}</p>
+                </div>
+
+                {selectedTool.status === "active" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                      <div className="bg-purple-50 p-2 rounded text-center">
+                        <div className="text-lg font-bold text-purple-600">{selectedTool.rating}</div>
+                        <div className="text-xs text-gray-600">评分</div>
+                      </div>
+                      <div className="bg-green-50 p-2 rounded text-center">
+                        <div className="text-lg font-bold text-green-600">{selectedTool.users}</div>
+                        <div className="text-xs text-gray-600">用户</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      {selectedTool.features.map((feature, idx) => (
+                        <div key={idx} className="flex items-center text-xs">
+                          <svg className="w-3 h-3 mr-2 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
+                          </svg>
+                          <span className="text-gray-700">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel - Application */}
+          <div className="lg:col-span-3">
+            {selectedTool.status === "active" ? (
+              selectedTool.id === 1 ? (
+                <StealthTransferApp />
+              ) : (
+                <ComingSoonApp tool={selectedTool} />
+              )
+            ) : (
+              <ComingSoonApp tool={selectedTool} />
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }

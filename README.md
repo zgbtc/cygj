@@ -1,176 +1,160 @@
 # Crypto Tools Hub - 加密工具聚合平台
 
-一个精选的加密货币工具聚合平台，帮助用户发现和使用优质的 Web3 工具。
+精选优质加密货币工具，助力您的 Web3 之旅
 
-## 🎯 特性
+🌐 **在线演示**: [即将上线]
 
-- ✅ 精选优质工具
-- ✅ 分类浏览
-- ✅ 搜索功能
-- ✅ 响应式设计
-- ✅ 无需后端
-- ✅ 快速部署
+## 📸 项目截图
 
-## 🛠️ 技术栈
+![首页](https://via.placeholder.com/800x400?text=Crypto+Tools+Hub)
 
-- HTML5
-- Tailwind CSS (CDN)
-- Vanilla JavaScript
-- 无需构建工具
+## ✨ 功能特性
 
-## 📦 项目结构
+### 🎭 Stealth Transfer (已上线)
+多跳混币器，通过交叉转账隐藏资金路径，保护隐私
+- 10-1000 跳可选
+- 自动路径生成
+- 支持 BSC/ETH
+- 服务费固定
+
+### 即将推出
+- 🔐 HD Wallet Generator - HD 钱包生成器
+- 💸 Batch Transfer - 批量转账工具
+- 📊 Token Analyzer - 代币分析工具
+- ⛽ Gas Tracker - Gas 价格追踪
+- 🎨 NFT Batch Mint - NFT 批量铸造
+
+## 🚀 技术栈
+
+### 前端
+- **框架**: Next.js 16.2.6 (App Router + Turbopack)
+- **UI**: React 19 + Tailwind CSS 4
+- **语言**: TypeScript 5
+
+### 后端
+- **框架**: Flask
+- **区块链**: Web3.py
+- **钱包**: eth-account, mnemonic
+
+## 📦 快速开始
+
+### 前置要求
+- Node.js 20+
+- Python 3.10+
+- npm 或 yarn
+
+### 安装
+
+```bash
+# 克隆项目
+git clone https://github.com/your-username/crypto-tools-hub.git
+cd crypto-tools-hub
+
+# 安装前端依赖
+npm install
+
+# 安装后端依赖
+cd stealth_transfer
+pip install -r requirements.txt
+cd ..
+```
+
+### 开发
+
+```bash
+# 终端 1: 启动前端
+npm run dev
+
+# 终端 2: 启动后端
+cd stealth_transfer
+python app.py
+```
+
+访问 http://localhost:3000
+
+## 📁 项目结构
 
 ```
 crypto-tools-hub/
-├── index.html              # 主页
-├── app.js                  # 主页逻辑
-├── stealth-transfer/       # Stealth Transfer 工具页
-│   └── index.html
-└── README.md
+├── app/                      # Next.js App Router
+│   ├── page.tsx             # 首页
+│   ├── layout.tsx           # 布局
+│   └── stealth-transfer/    # Stealth Transfer 页面
+├── stealth_transfer/        # Flask 后端
+│   ├── app.py              # API 服务
+│   ├── mixer_engine.py     # 混币器引擎
+│   ├── hd_wallet.py        # HD 钱包
+│   └── static/             # 静态文件
+├── public/                  # 静态资源
+├── package.json            # 前端依赖
+├── netlify.toml            # Netlify 配置
+└── README.md               # 本文件
 ```
 
-## 🚀 快速开始
+## 🎯 使用说明
 
-### 方式 1: 直接打开
+### Stealth Transfer
 
-直接用浏览器打开 `index.html` 文件即可。
+1. 访问首页，默认显示 Stealth Transfer
+2. 选择网络（BSC Testnet/Mainnet/Ethereum）
+3. 输入源地址私钥
+4. 输入目标地址
+5. 输入转账金额
+6. 选择跳数（推荐 100）
+7. （可选）输入助记词
+8. 查看费用估算
+9. 点击"执行混币"
 
-### 方式 2: 本地服务器
+### 费用说明
 
-```bash
-# 使用 Python
-python -m http.server 8000
+| 跳数 | 服务费 | Gas 费用 (估算) | 推荐场景 |
+|------|--------|----------------|---------|
+| 10   | 0.003 BNB | 0.0021 BNB | 快速测试 |
+| 100  | 0.03 BNB | 0.021 BNB | ⭐ 推荐使用 |
+| 500  | 0.15 BNB | 0.105 BNB | 高隐私需求 |
+| 1000 | 0.30 BNB | 0.21 BNB | 最高隐私 |
 
-# 使用 Node.js
-npx serve
+## 🔒 安全提示
 
-# 使用 PHP
-php -S localhost:8000
-```
+- ⚠️ 请妥善保管私钥和助记词
+- ⚠️ 不要泄露给任何人
+- ⚠️ 建议先在测试网测试
+- ⚠️ 建议从小额开始
 
-然后访问 http://localhost:8000
+## 🚀 部署
 
-## 📝 添加新工具
+### Netlify 部署（前端）
 
-编辑 `app.js` 文件，在 `tools` 数组中添加新工具：
+1. 推送代码到 GitHub
+2. 在 Netlify 导入项目
+3. 自动部署
 
-```javascript
-{
-    id: 7,
-    name: "Your Tool Name",
-    category: "privacy", // privacy, defi, analytics, wallet
-    description: "工具描述",
-    icon: "🔧",
-    features: [
-        "特性 1",
-        "特性 2",
-        "特性 3"
-    ],
-    chains: ["BSC", "ETH"],
-    url: "/your-tool",
-    status: "active", // active 或 coming-soon
-    rating: 4.5,
-    users: "1K+"
-}
-```
+### 后端部署
 
-## 🎨 自定义
+参考 [部署指南.md](./部署指南.md)
 
-### 修改颜色主题
+## 📚 文档
 
-在 `index.html` 的 `<style>` 标签中修改：
+- [使用说明.md](./使用说明.md) - 详细使用指南
+- [快速启动.md](./快速启动.md) - 快速上手
+- [部署指南.md](./部署指南.md) - 部署流程
+- [测试报告.md](./测试报告.md) - 测试结果
+- [项目总结.md](./项目总结.md) - 项目概览
 
-```css
-.gradient-bg {
-    background: linear-gradient(135deg, #your-color-1 0%, #your-color-2 100%);
-}
-```
+## 🤝 贡献
 
-### 修改分类
-
-在 `index.html` 的分类部分添加或修改分类卡片。
-
-## 📱 已集成工具
-
-### 1. Stealth Transfer 🎭
-- **类型**: 隐私工具
-- **功能**: 多跳混币器
-- **链**: BSC, ETH
-- **状态**: ✅ 可用
-
-### 2. HD Wallet Generator 🔐
-- **类型**: 钱包工具
-- **功能**: BIP44 HD 钱包生成
-- **链**: BSC, ETH, Polygon
-- **状态**: ✅ 可用
-
-### 3. Batch Transfer 💸
-- **类型**: DeFi 工具
-- **功能**: 批量转账
-- **链**: BSC, ETH, Polygon
-- **状态**: ✅ 可用
-
-### 4-6. 即将推出
-- Token Analyzer 📊
-- Gas Tracker ⛽
-- NFT Batch Mint 🎨
-
-## 🌐 部署
-
-### Vercel
-
-1. 安装 Vercel CLI:
-```bash
-npm i -g vercel
-```
-
-2. 部署:
-```bash
-vercel
-```
-
-### Netlify
-
-1. 拖拽整个文件夹到 Netlify Drop
-2. 或使用 Netlify CLI:
-```bash
-npm i -g netlify-cli
-netlify deploy
-```
-
-### GitHub Pages
-
-1. 推送到 GitHub 仓库
-2. 在仓库设置中启用 GitHub Pages
-3. 选择 main 分支
-
-## 📊 工具分类
-
-- 🎭 **隐私工具**: 混币器、隐私钱包
-- 💰 **DeFi 工具**: 交易、流动性、批量操作
-- 📊 **数据分析**: 链上数据、图表、追踪
-- 🔐 **钱包工具**: HD 钱包、管理工具
-
-## 🔗 相关链接
-
-- Stealth Transfer 后端: `http://localhost:5000`
-- 文档: 查看各工具页面
-- GitHub: [Your Repo]
+欢迎提交 Pull Request 或 Issue！
 
 ## 📄 许可证
 
 MIT License
 
-## 🤝 贡献
+## 📞 联系方式
 
-欢迎提交 PR 添加新工具或改进现有功能！
+- GitHub: [your-username](https://github.com/your-username)
+- Twitter: [@your-twitter](https://twitter.com/your-username)
+- Email: support@your-domain.com
 
-## ⚠️ 免责声明
+---
 
-本平台仅提供工具聚合服务，不对工具的安全性和可靠性负责。使用前请自行评估风险。
-
-## 📧 联系方式
-
-- Twitter: [@your-twitter]
-- Discord: [Your Discord]
-- Email: your-email@example.com
+© 2026 Crypto Tools Hub. All rights reserved.
