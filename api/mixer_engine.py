@@ -28,10 +28,21 @@ FEE_CONFIG = {
 class MixerEngine:
     """混币器引擎 - 通过多跳转账隐藏资金路径"""
     
-    def __init__(self, chain: str = 'bsc_testnet'):
-        self.transfer_engine = TransferEngine(chain)
+    def __init__(self, chain: str = 'bsc_testnet', use_proxy: bool = False):
+        """
+        初始化混币引擎
+        
+        Args:
+            chain: 链名称
+            use_proxy: 是否使用代理池隐藏IP
+        """
+        self.transfer_engine = TransferEngine(chain, use_proxy=use_proxy)
         self.chain = chain
         self.w3 = self.transfer_engine.w3
+        self.use_proxy = use_proxy
+        
+        if use_proxy:
+            logger.info("🔒 IP隐藏模式已启用")
     
     def calculate_fees(self, num_hops: int, total_amount: float) -> Dict:
         """
@@ -706,7 +717,7 @@ class MixerEngine:
         gas_level: str = 'standard',
         nonce: int = None
     ) -> Dict:
-        """发送单笔交易"""
+        """发送单笔交易，支持代理失败自动重试"""
         account = Account.from_key(from_private_key)
         from_address = account.address
         
@@ -740,17 +751,31 @@ class MixerEngine:
         # 签名
         signed_tx = self.w3.eth.account.sign_transaction(tx, from_private_key)
         
-        # 发送
-        tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        
-        return {
-            'tx_hash': tx_hash.hex(),
-            'from': from_address,
-            'to': to_address,
-            'amount': amount,
-            'nonce': nonce,
-            'explorer_url': f"{self.transfer_engine.chain_config['explorer']}/tx/{tx_hash.hex()}"
-        }
+        # 发送交易，支持代理失败重试
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                
+                return {
+                    'tx_hash': tx_hash.hex(),
+                    'from': from_address,
+                    'to': to_address,
+                    'amount': amount,
+                    'nonce': nonce,
+                    'explorer_url': f"{self.transfer_engine.chain_config['explorer']}/tx/{tx_hash.hex()}"
+                }
+                
+            except Exception as e:
+                logger.warning(f"交易发送失败（尝试 {attempt + 1}/{max_retries}）: {e}")
+                
+                # 如果使用代理且失败，切换代理
+                if self.use_proxy and attempt < max_retries - 1:
+                    logger.info("切换代理重试...")
+                    self.w3 = self.transfer_engine._create_web3_with_proxy()
+                    time.sleep(1)
+                else:
+                    raise
 
 
 if __name__ == '__main__':

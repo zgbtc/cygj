@@ -54,7 +54,7 @@ class AdvancedMixerEngine:
         
         Args:
             chain: 链名称
-            mode: 混币模式 (fast, privacy, ultimate)
+            mode: 混币模式 (fast, ultimate)
         """
         if mode not in MIXING_MODES:
             raise ValueError(f"不支持的模式: {mode}. 可选: {list(MIXING_MODES.keys())}")
@@ -63,8 +63,11 @@ class AdvancedMixerEngine:
         self.mode_config = MIXING_MODES[mode]
         self.chain = chain
         
+        # 根据模式决定是否使用代理
+        use_proxy = (mode == 'ultimate')  # 只有极致隐私模式使用代理
+        
         # 初始化转账引擎
-        self.transfer_engine = TransferEngine(chain)
+        self.transfer_engine = TransferEngine(chain, use_proxy=use_proxy)
         self.w3 = self.transfer_engine.w3
         
         # 初始化跨链桥接（如果需要）
@@ -74,9 +77,11 @@ class AdvancedMixerEngine:
         else:
             self.bridge = None
         
-        # Tor 状态
-        if self.mode_config['use_tor']:
-            logger.info(f"🕵️ Tor 代理已启用")
+        # 显示模式信息
+        if use_proxy:
+            logger.info(f"🔒 IP隐藏: 已启用（代理池）")
+        else:
+            logger.info(f"⚠️ IP隐藏: 建议使用VPN")
         
         logger.info(f"🎯 混币模式: {self.mode_config['name']}")
         logger.info(f"🔒 隐私等级: {self.mode_config['privacy_level']}")

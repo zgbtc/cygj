@@ -152,6 +152,14 @@ function StealthTransferApp() {
     try {
       setProgress(prev => [...prev, "开始混币..."]);
       setProgress(prev => [...prev, `模式: ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
+      
+      // 根据模式显示IP隐藏状态
+      if (mode === 'ultimate') {
+        setProgress(prev => [...prev, "🔒 IP隐藏: 已启用（代理池）"]);
+      } else {
+        setProgress(prev => [...prev, "⚠️ IP隐藏: 建议使用VPN"]);
+      }
+      
       setProgress(prev => [...prev, `跳数: ${numHops}`]);
       
       const response = await fetch(`${API_URL}/api/mixer`, {

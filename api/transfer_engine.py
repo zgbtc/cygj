@@ -1,6 +1,7 @@
-"""转账引擎核心逻辑"""
+"""转账引擎核心逻辑 - 支持代理池隐藏IP"""
 import time
 import logging
+import requests
 from typing import List, Dict, Optional
 from web3 import Web3
 from eth_account import Account
@@ -11,17 +12,91 @@ logger = logging.getLogger(__name__)
 
 
 class TransferEngine:
-    def __init__(self, chain: str = 'bsc'):
+    def __init__(self, chain: str = 'bsc', use_proxy: bool = False):
+        """
+        初始化转账引擎
+        
+        Args:
+            chain: 链名称
+            use_proxy: 是否使用代理池隐藏IP
+        """
         if chain not in CHAINS:
             raise ValueError(f"不支持的链: {chain}")
         
         self.chain_config = CHAINS[chain]
-        self.w3 = Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
+        self.use_proxy = use_proxy
+        
+        # 初始化 Web3 连接
+        if use_proxy:
+            try:
+                from proxy_pool import get_proxy_pool
+                self.proxy_pool = get_proxy_pool()
+                self.w3 = self._create_web3_with_proxy()
+                logger.info(f"🕵️ 已启用代理池隐藏IP")
+            except Exception as e:
+                logger.warning(f"代理池初始化失败，使用直连: {e}")
+                self.w3 = Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
+        else:
+            self.w3 = Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
         
         if not self.w3.is_connected():
             raise ConnectionError(f"无法连接到 {chain} 网络")
         
         logger.info(f"已连接到 {self.chain_config['name']}")
+    
+    def _create_web3_with_proxy(self, retry_count: int = 3) -> Web3:
+        """创建使用代理的Web3实例，支持失败重试"""
+        for attempt in range(retry_count):
+            try:
+                proxy = self.proxy_pool.get_random_proxy()
+                
+                if not proxy:
+                    logger.warning(f"代理池为空（尝试 {attempt + 1}/{retry_count}），刷新代理池...")
+                    self.proxy_pool.refresh_proxies(force=True)
+                    proxy = self.proxy_pool.get_random_proxy()
+                    
+                    if not proxy:
+                        logger.warning("刷新后仍无可用代理，使用直连")
+                        return Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
+                
+                logger.info(f"使用代理: {proxy}")
+                session = requests.Session()
+                session.proxies = {
+                    'http': proxy,
+                    'https': proxy
+                }
+                
+                # 设置超时和重试
+                adapter = requests.adapters.HTTPAdapter(
+                    max_retries=2,
+                    pool_connections=10,
+                    pool_maxsize=10
+                )
+                session.mount('http://', adapter)
+                session.mount('https://', adapter)
+                
+                w3 = Web3(Web3.HTTPProvider(
+                    self.chain_config['rpc_url'],
+                    session=session,
+                    request_kwargs={'timeout': 30}
+                ))
+                
+                # 测试连接
+                if w3.is_connected():
+                    logger.info(f"✅ 代理连接成功")
+                    return w3
+                else:
+                    logger.warning(f"代理连接失败，移除: {proxy}")
+                    self.proxy_pool.remove_proxy(proxy)
+                    
+            except Exception as e:
+                logger.warning(f"代理 {proxy} 失败: {e}")
+                if proxy:
+                    self.proxy_pool.remove_proxy(proxy)
+        
+        # 所有代理都失败，使用直连
+        logger.warning("所有代理尝试失败，使用直连")
+        return Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
     
     def validate_addresses(self, addresses: List[str]) -> tuple[bool, str]:
         """验证地址列表"""
