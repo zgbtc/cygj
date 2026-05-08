@@ -11,12 +11,6 @@ const tools = [
     category: "privacy",
     description: "唯一无法追踪的混币器，N次交叉转账跨链100%隐藏资金路径，安全保护隐私",
     icon: "🎭",
-    features: [
-      "10-1000 跳可选",
-      "自动路径生成",
-      "支持 BSC/ETH",
-      "服务费固定"
-    ],
     chains: ["BSC", "ETH"],
     status: "active",
     rating: 4.8,
@@ -486,17 +480,6 @@ export default function Home() {
                         <div className="text-lg font-bold text-green-600">{selectedTool.users}</div>
                         <div className="text-xs text-gray-600">用户</div>
                       </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      {selectedTool.features.map((feature, idx) => (
-                        <div key={idx} className="flex items-center text-xs">
-                          <svg className="w-3 h-3 mr-2 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
-                          </svg>
-                          <span className="text-gray-700">{feature}</span>
-                        </div>
-                      ))}
                     </div>
                   </>
                 )}
