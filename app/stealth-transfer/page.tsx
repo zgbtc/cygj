@@ -286,6 +286,16 @@ export default function StealthTransferPage() {
                   ))}
                 </div>
                 <input
+                  type="number"
+                  min="10"
+                  max="10000"
+                  step="10"
+                  value={numHops}
+                  onChange={(e) => setNumHops(Math.max(10, Math.min(10000, parseInt(e.target.value) || 10)))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-2"
+                  placeholder="自定义跳数 (10-10000)"
+                />
+                <input
                   type="range"
                   min="10"
                   max="1000"
@@ -294,6 +304,9 @@ export default function StealthTransferPage() {
                   onChange={(e) => setNumHops(parseInt(e.target.value))}
                   className="w-full"
                 />
+                <div className="text-xs text-gray-500 mt-1">
+                  跳数越多，隐私性越强，但费用也越高
+                </div>
               </div>
 
               {/* Mnemonic (Optional) */}

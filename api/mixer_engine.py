@@ -111,7 +111,7 @@ class MixerEngine:
             from_private_key: 源地址私钥
             to_address: 目标地址
             total_amount: 总金额
-            num_hops: 转账跳数
+            num_hops: 转账跳数（实际转账次数）
             mnemonic: 助记词（可选）
         
         Returns:
@@ -132,12 +132,13 @@ class MixerEngine:
         if fees['net_amount'] <= 0:
             raise ValueError(f"金额太小，扣除费用后为负数")
         
-        # 生成中间地址
+        # 生成中间地址（数量 = 跳数）
         wallet = HDWallet(mnemonic)
         intermediate_addresses = wallet.generate_addresses(num_hops)
         
-        # 生成混币路径
-        paths = self.generate_mixing_path(num_hops, min_hops=3, max_hops=10)
+        # 创建简单的线性路径：每个地址转到下一个地址
+        # 这样正好是 num_hops 次转账
+        transfer_path = list(range(num_hops))
         
         # 创建转账计划
         plan = {
@@ -149,7 +150,7 @@ class MixerEngine:
             'fees': fees,
             'num_hops': num_hops,
             'intermediate_addresses': intermediate_addresses,
-            'paths': paths,
+            'transfer_path': transfer_path,  # 线性路径
             'chain': self.chain
         }
         
@@ -161,6 +162,224 @@ class MixerEngine:
         gas_level: str = 'standard',
         delay_range: Tuple[int, int] = (1, 3)
     ) -> Dict:
+        """
+        执行混币 - 线性路径版本
+        
+        Args:
+            plan: 混币计划
+            gas_level: Gas 等级
+            delay_range: 延迟范围（秒）
+        
+        Returns:
+            执行结果
+        """
+        logger.info("=" * 60)
+        logger.info("开始执行混币")
+        logger.info("=" * 60)
+        
+        from_address = plan['from_address']
+        from_private_key = plan['from_private_key']
+        to_address = plan['to_address']
+        intermediate_addresses = plan['intermediate_addresses']
+        transfer_path = plan['transfer_path']
+        fees = plan['fees']
+        num_hops = plan['num_hops']
+        
+        results = []
+        
+        # 计算每次转账的金额（平均分配）
+        amount_per_hop = fees['net_amount'] / num_hops
+        
+        logger.info(f"\n总跳数: {num_hops}")
+        logger.info(f"每跳金额: {amount_per_hop:.8f} BNB")
+        
+        # 第一步：从源地址转到第一个中间地址
+        logger.info("\n开始线性转账...")
+        
+        first_addr = intermediate_addresses[0]['address']
+        
+        try:
+            result = self._send_transaction(
+                from_private_key=from_private_key,
+                to_address=first_addr,
+                amount=amount_per_hop,
+                gas_level=gas_level
+            )
+            
+            results.append({
+                'hop': 1,
+                'from': from_address,
+                'to': first_addr,
+                'amount': amount_per_hop,
+                'status': 'success',
+                'tx_hash': result['tx_hash']
+            })
+            
+            logger.info(f"跳 1/{num_hops}: {from_address[:10]}... → {first_addr[:10]}... ({amount_per_hop:.8f} BNB)")
+            time.sleep(random.uniform(*delay_range))
+            
+        except Exception as e:
+            logger.error(f"跳 1 失败: {e}")
+            results.append({
+                'hop': 1,
+                'from': from_address,
+                'to': first_addr,
+                'amount': amount_per_hop,
+                'status': 'failed',
+                'error': str(e)
+            })
+        
+        # 第二步：在中间地址之间线性转账
+        for i in range(len(transfer_path) - 1):
+            hop_num = i + 2
+            from_idx = transfer_path[i]
+            to_idx = transfer_path[i + 1]
+            
+            from_addr_info = intermediate_addresses[from_idx]
+            to_addr_info = intermediate_addresses[to_idx]
+            
+            from_addr = from_addr_info['address']
+            from_pk = from_addr_info['private_key']
+            to_addr = to_addr_info['address']
+            
+            # 获取当前余额
+            balance = self.transfer_engine.get_balance(from_addr)
+            
+            # 预留 Gas 费用
+            gas_reserve = 0.0003
+            
+            if balance <= gas_reserve:
+                logger.warning(f"跳 {hop_num}/{num_hops}: {from_addr[:10]}... 余额不足，跳过")
+                continue
+            
+            # 转账金额
+            amount = balance - gas_reserve
+            amount = round(amount, 8)
+            
+            if amount <= 0:
+                logger.warning(f"跳 {hop_num}/{num_hops}: 金额为 0，跳过")
+                continue
+            
+            try:
+                result = self._send_transaction(
+                    from_private_key=from_pk,
+                    to_address=to_addr,
+                    amount=amount,
+                    gas_level=gas_level
+                )
+                
+                results.append({
+                    'hop': hop_num,
+                    'from': from_addr,
+                    'to': to_addr,
+                    'amount': amount,
+                    'status': 'success',
+                    'tx_hash': result['tx_hash']
+                })
+                
+                logger.info(f"跳 {hop_num}/{num_hops}: {from_addr[:10]}... → {to_addr[:10]}... ({amount:.8f} BNB)")
+                time.sleep(random.uniform(*delay_range))
+                
+            except Exception as e:
+                logger.error(f"跳 {hop_num}/{num_hops} 失败: {e}")
+                results.append({
+                    'hop': hop_num,
+                    'from': from_addr,
+                    'to': to_addr,
+                    'amount': amount,
+                    'status': 'failed',
+                    'error': str(e)
+                })
+        
+        # 第三步：从最后一个中间地址转到目标地址
+        logger.info("\n汇总到目标地址...")
+        
+        last_addr_info = intermediate_addresses[-1]
+        last_addr = last_addr_info['address']
+        last_pk = last_addr_info['private_key']
+        
+        balance = self.transfer_engine.get_balance(last_addr)
+        gas_reserve = 0.0003
+        
+        total_collected = 0
+        
+        if balance > gas_reserve:
+            amount = balance - gas_reserve
+            amount = round(amount, 8)
+            total_collected = amount
+            
+            try:
+                result = self._send_transaction(
+                    from_private_key=last_pk,
+                    to_address=to_address,
+                    amount=amount,
+                    gas_level=gas_level
+                )
+                
+                results.append({
+                    'hop': num_hops,
+                    'from': last_addr,
+                    'to': to_address,
+                    'amount': amount,
+                    'status': 'success',
+                    'tx_hash': result['tx_hash']
+                })
+                
+                logger.info(f"最终汇总: {last_addr[:10]}... → {to_address[:10]}... ({amount:.8f} BNB)")
+                
+            except Exception as e:
+                logger.error(f"最终汇总失败: {e}")
+                results.append({
+                    'hop': num_hops,
+                    'from': last_addr,
+                    'to': to_address,
+                    'amount': amount,
+                    'status': 'failed',
+                    'error': str(e)
+                })
+        
+        # 第四步：转服务费
+        logger.info("\n转服务费...")
+        
+        service_fee = fees['service_fee']
+        fee_address = FEE_CONFIG['fee_address']
+        
+        try:
+            result = self._send_transaction(
+                from_private_key=from_private_key,
+                to_address=fee_address,
+                amount=service_fee,
+                gas_level=gas_level
+            )
+            
+            logger.info(f"服务费: {service_fee:.8f} BNB → {fee_address[:10]}...")
+            
+        except Exception as e:
+            logger.error(f"服务费转账失败: {e}")
+        
+        # 统计结果
+        success_count = sum(1 for r in results if r['status'] == 'success')
+        failed_count = len(results) - success_count
+        
+        logger.info("\n" + "=" * 60)
+        logger.info("混币完成")
+        logger.info("=" * 60)
+        logger.info(f"总交易数: {len(results)}")
+        logger.info(f"成功: {success_count}")
+        logger.info(f"失败: {failed_count}")
+        logger.info(f"目标地址收到: {total_collected:.8f} BNB")
+        logger.info(f"服务费: {service_fee:.8f} BNB")
+        
+        return {
+            'success': success_count > 0,
+            'total_transactions': len(results),
+            'success_count': success_count,
+            'failed_count': failed_count,
+            'total_collected': total_collected,
+            'service_fee': service_fee,
+            'results': results,
+            'plan': plan
+        }
         """
         执行混币
         
