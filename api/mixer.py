@@ -1,5 +1,17 @@
 from http.server import BaseHTTPRequestHandler
 import json
+import sys
+import os
+
+# 添加当前目录到 Python 路径
+sys.path.insert(0, os.path.dirname(__file__))
+
+try:
+    from mixer_engine import MixerEngine
+    MIXER_AVAILABLE = True
+except ImportError as e:
+    MIXER_AVAILABLE = False
+    IMPORT_ERROR = str(e)
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -22,17 +34,43 @@ class handler(BaseHTTPRequestHandler):
             else:
                 data = {}
             
-            # 暂时返回模拟数据，因为依赖项可能无法加载
-            result = {
-                'success': True,
-                'message': '混币功能正在开发中',
-                'total_transactions': 0,
-                'success_count': 0,
-                'failed_count': 0,
-                'total_collected': '0',
-                'service_fee': '0',
-                'note': 'Python dependencies need to be configured on Vercel'
-            }
+            # 检查混币引擎是否可用
+            if not MIXER_AVAILABLE:
+                raise Exception(f"混币引擎加载失败: {IMPORT_ERROR}")
+            
+            # 获取参数
+            chain = data.get('chain', 'bsc_testnet')
+            from_private_key = data.get('from_private_key')
+            to_address = data.get('to_address')
+            total_amount = data.get('total_amount')
+            num_hops = data.get('num_hops', 100)
+            mnemonic = data.get('mnemonic')
+            gas_level = data.get('gas_level', 'standard')
+            
+            # 验证必填参数
+            if not from_private_key:
+                raise Exception('缺少源地址私钥')
+            
+            if not to_address:
+                raise Exception('缺少目标地址')
+            
+            if not total_amount:
+                raise Exception('缺少总金额')
+            
+            # 创建混币器引擎
+            mixer = MixerEngine(chain)
+            
+            # 创建混币计划
+            plan = mixer.create_mixing_plan(
+                from_private_key=from_private_key,
+                to_address=to_address,
+                total_amount=float(total_amount),
+                num_hops=int(num_hops),
+                mnemonic=mnemonic
+            )
+            
+            # 执行混币
+            result = mixer.execute_mixing(plan, gas_level=gas_level)
             
             # 发送响应
             self.send_response(200)
