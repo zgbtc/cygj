@@ -864,11 +864,6 @@ export default function Home() {
               <img src="/logo.png" alt="CYGJ Logo" className="w-10 h-10" />
               <span className="text-2xl font-bold text-white">CYGJ Crypto Tools</span>
             </div>
-            <div className="hidden md:flex space-x-6">
-              <a href="#" className="text-gray-400 hover:text-[#d4af37] transition">工具</a>
-              <a href="#" className="text-gray-400 hover:text-[#d4af37] transition">文档</a>
-              <a href="#" className="text-gray-400 hover:text-[#d4af37] transition">关于</a>
-            </div>
           </div>
         </nav>
       </header>
