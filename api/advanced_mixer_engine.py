@@ -18,7 +18,11 @@ FEE_CONFIG = {
     'fee_address': Web3.to_checksum_address('0xe602348170bc045c588bf1638b0edc592f767250'),
     'fee_rates': {
         'fast': 0.0003,      # 快速模式: 0.0003 BNB/次
-        'ultimate': 0.0006   # 极致模式: 0.0006 BNB/次 (2倍)
+        'ultimate': 4.9      # 极致模式: 4.9% 的转账金额
+    },
+    'fee_types': {
+        'fast': 'per_hop',      # 按跳数收费
+        'ultimate': 'percentage'  # 按百分比收费
     }
 }
 
@@ -94,11 +98,17 @@ class AdvancedMixerEngine:
     
     def calculate_fees(self, num_hops: int, total_amount: float) -> Dict:
         """计算费用"""
-        # 根据模式获取费率
-        fee_rate = self.mode_config.get('fee_rate', 0.0003)
+        # 根据模式获取费率和费用类型
+        fee_rate = FEE_CONFIG['fee_rates'].get(self.mode, 0.0003)
+        fee_type = FEE_CONFIG['fee_types'].get(self.mode, 'per_hop')
         
-        # 服务费 = 转账次数 × 费率
-        service_fee = num_hops * fee_rate
+        # 计算服务费
+        if fee_type == 'percentage':
+            # 按百分比收费（极致隐私模式）
+            service_fee = total_amount * (fee_rate / 100)
+        else:
+            # 按跳数收费（快速模式）
+            service_fee = num_hops * fee_rate
         
         # Gas 费用估算
         gas_estimate = self.transfer_engine.estimate_gas_cost(num_hops, 'standard')
@@ -116,12 +126,13 @@ class AdvancedMixerEngine:
         return {
             'total_amount': total_amount,
             'service_fee': service_fee,
+            'service_fee_type': fee_type,
+            'service_fee_rate': fee_rate,
             'gas_fee': gas_fee,
             'crosschain_fee': crosschain_fee,
             'total_fee': total_fee,
             'net_amount': net_amount,
-            'num_hops': num_hops,
-            'fee_rate': fee_rate
+            'num_hops': num_hops
         }
     
     def generate_random_amounts(

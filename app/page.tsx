@@ -113,7 +113,8 @@ const MIXING_MODES = {
     description: "交叉混淆 · 隐藏IP · 快速到账",
     color: "blue",
     feeRate: 0.0003,
-    crosschainFee: 0  // 单链无跨链费用
+    crosschainFee: 0,  // 单链无跨链费用
+    percentageFee: 0   // 不按百分比收费
   },
   ultimate: {
     name: "极致隐私",
@@ -122,8 +123,9 @@ const MIXING_MODES = {
     time: "8-50 小时",
     description: "多链幽灵模式 · 完全匿名 · 无法追踪",
     color: "red",
-    feeRate: 0.0006,
-    crosschainFee: 0.006  // 3次跨链，每次0.002
+    feeRate: 0,  // 不按跳数收费
+    crosschainFee: 0.006,  // 3次跨链，每次0.002
+    percentageFee: 4.9  // 按转账金额的4.9%收费
   }
 };
 
@@ -394,8 +396,9 @@ function StealthTransferApp() {
       {/* Number of Hops */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          跳数: {numHops}
+          跳数: {numHops} <span className="text-xs text-gray-500">(越多越隐秘)</span>
         </label>
+        <p className="text-xs text-gray-600 mb-2">多个中转钱包地址，隐藏转账路径，实现隐匿转账，确保资金的隐私。</p>
         <div className="flex gap-2">
           {[10, 50, 100, 500, 1000].map((num) => (
             <button
@@ -438,8 +441,13 @@ function StealthTransferApp() {
           <div>
             <p className="text-gray-600 text-xs">服务费</p>
             <p className="font-semibold">
-              {(numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)).toFixed(4)} BNB
+              {mode === 'ultimate' && amount
+                ? (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100).toFixed(4)
+                : (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)).toFixed(4)} BNB
             </p>
+            {mode === 'ultimate' && (
+              <p className="text-xs text-gray-500">转账金额的 4.9%</p>
+            )}
           </div>
           <div>
             <p className="text-gray-600 text-xs">预估 Gas</p>
@@ -456,18 +464,29 @@ function StealthTransferApp() {
           <div>
             <p className="text-gray-600 text-xs">总费用</p>
             <p className="font-semibold text-purple-600">
-              ~{((numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) + 
-                 numHops * 0.00021 + 
-                 (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)} BNB
+              ~{mode === 'ultimate' && amount
+                ? ((parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100) + 
+                   numHops * 0.00021 + 
+                   (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)
+                : ((numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) + 
+                   numHops * 0.00021 + 
+                   (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)} BNB
             </p>
           </div>
           <div>
             <p className="text-gray-600 text-xs">预计收到</p>
             <p className="font-semibold text-green-600">
-              {amount ? (parseFloat(amount) - 
-                        (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) - 
-                        numHops * 0.00021 - 
-                        (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5) : "0"} BNB
+              {amount ? (
+                mode === 'ultimate'
+                  ? (parseFloat(amount) - 
+                     (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100) - 
+                     numHops * 0.00021 - 
+                     (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)
+                  : (parseFloat(amount) - 
+                     (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) - 
+                     numHops * 0.00021 - 
+                     (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)
+              ) : "0"} BNB
             </p>
           </div>
         </div>

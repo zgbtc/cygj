@@ -115,19 +115,25 @@ class CrossChainMixer:
         mnemonic: str = None
     ) -> Dict:
         """
-        执行跨链混币
+        执行跨链混币 - 真正无法追溯版本
+        
+        关键改进：
+        1. 每次跨链前，混币到新的临时地址
+        2. 用临时地址的私钥执行跨链
+        3. 到新链后，从临时地址继续混币
+        4. 跨链桥只能看到：临时地址B → 临时地址C（无法关联源地址A）
         
         Args:
             plan: 混币计划
             from_private_key: 源地址私钥
             to_address: 目标地址
-            mnemonic: 助记词
+            mnemonic: 助记词（用于生成临时地址）
         
         Returns:
             执行结果
         """
         logger.info("=" * 60)
-        logger.info("开始跨链混币")
+        logger.info("开始跨链混币（真正无法追溯）")
         logger.info("=" * 60)
         
         account = Account.from_key(from_private_key)
@@ -136,15 +142,18 @@ class CrossChainMixer:
         logger.info(f"路径: {' → '.join(plan['route'])}")
         logger.info(f"总跳数: {plan['total_hops']}")
         logger.info(f"总金额: {plan['total_amount']}")
+        logger.info(f"🔒 隐私保护：每次跨链使用新的临时地址")
         
         results = []
         current_private_key = from_private_key
         current_amount = plan['total_amount']
+        temp_addresses = []  # 记录使用的临时地址
         
         # 执行每一步
-        for step in plan['steps']:
+        for step_idx, step in enumerate(plan['steps']):
             chain = step['chain']
             hops = step['hops']
+            is_last_step = (step_idx == len(plan['steps']) - 1)
             
             logger.info(f"\n{'=' * 60}")
             logger.info(f"步骤 {step['step']}: 在 {chain} 上混币")
@@ -153,10 +162,38 @@ class CrossChainMixer:
             # 1. 在当前链上混币
             mixer = MixerEngine(chain=chain, use_proxy=self.use_proxy)
             
+            # 决定混币的目标地址
+            if is_last_step:
+                # 最后一步：混币到用户指定的目标地址
+                mix_target = to_address
+                logger.info(f"✅ 最后一步：混币到目标地址 {to_address[:10]}...")
+            else:
+                # 中间步骤：混币到新的临时地址（用于跨链）
+                # 使用HD钱包生成临时地址
+                if mnemonic:
+                    from hd_wallet import HDWallet
+                    hd = HDWallet(mnemonic)
+                    # 使用不同的索引生成不同的临时地址
+                    temp_account = hd.get_account(step_idx + 100)  # 从索引100开始
+                    mix_target = temp_account['address']
+                    temp_private_key = temp_account['private_key']
+                else:
+                    # 如果没有助记词，随机生成临时账户
+                    temp_account = Account.create()
+                    mix_target = temp_account.address
+                    temp_private_key = temp_account.key.hex()
+                
+                temp_addresses.append({
+                    'chain': chain,
+                    'address': mix_target,
+                    'purpose': 'bridge_source'
+                })
+                logger.info(f"🔑 生成临时地址：{mix_target[:10]}... (用于跨链)")
+            
             # 创建混币计划
             mix_plan = mixer.create_mixing_plan(
                 from_private_key=current_private_key,
-                to_address=to_address,  # 临时目标地址
+                to_address=mix_target,
                 total_amount=current_amount,
                 num_hops=hops,
                 mnemonic=mnemonic
@@ -173,7 +210,8 @@ class CrossChainMixer:
                 'step': step['step'],
                 'chain': chain,
                 'action': 'mix',
-                'result': mix_result
+                'result': mix_result,
+                'temp_address': mix_target if not is_last_step else None
             })
             
             # 2. 如果需要跨链
@@ -188,12 +226,35 @@ class CrossChainMixer:
                 if mix_result['success']:
                     bridge_amount = mix_result['total_collected']
                     
-                    # 执行跨链
+                    # 生成下一条链的临时接收地址
+                    if mnemonic:
+                        from hd_wallet import HDWallet
+                        hd = HDWallet(mnemonic)
+                        next_temp_account = hd.get_account(step_idx + 200)  # 从索引200开始
+                        bridge_to_address = next_temp_account['address']
+                        next_private_key = next_temp_account['private_key']
+                    else:
+                        next_temp_account = Account.create()
+                        bridge_to_address = next_temp_account.address
+                        next_private_key = next_temp_account.key.hex()
+                    
+                    temp_addresses.append({
+                        'chain': next_chain,
+                        'address': bridge_to_address,
+                        'purpose': 'bridge_destination'
+                    })
+                    
+                    logger.info(f"🔑 跨链源地址：{mix_target[:10]}...")
+                    logger.info(f"🔑 跨链目标地址：{bridge_to_address[:10]}...")
+                    logger.info(f"🔒 跨链桥只能看到：{mix_target[:10]}... → {bridge_to_address[:10]}...")
+                    logger.info(f"🔒 无法关联到源地址：{from_address[:10]}...")
+                    
+                    # 使用临时地址的私钥执行跨链
                     bridge_result = self.bridge.execute_bridge(
                         from_chain=chain,
                         to_chain=next_chain,
-                        from_private_key=current_private_key,
-                        to_address=to_address,
+                        from_private_key=temp_private_key,  # 使用临时地址私钥
+                        to_address=bridge_to_address,  # 跨链到新的临时地址
                         amount=bridge_amount
                     )
                     
@@ -202,11 +263,14 @@ class CrossChainMixer:
                         'chain': chain,
                         'action': 'bridge',
                         'to_chain': next_chain,
-                        'result': bridge_result
+                        'result': bridge_result,
+                        'bridge_from': mix_target,
+                        'bridge_to': bridge_to_address
                     })
                     
-                    # 更新当前金额
+                    # 更新当前私钥和金额（下一步从新的临时地址开始）
                     if bridge_result['success']:
+                        current_private_key = next_private_key
                         current_amount = bridge_amount - 0.002  # 扣除跨链费
                     
                     # 等待跨链完成
@@ -223,6 +287,8 @@ class CrossChainMixer:
         logger.info(f"总步骤: {len(results)}")
         logger.info(f"成功: {total_success}")
         logger.info(f"失败: {total_failed}")
+        logger.info(f"🔒 使用了 {len(temp_addresses)} 个临时地址")
+        logger.info(f"🔒 隐私保护：跨链桥无法追溯到源地址")
         
         return {
             'success': total_success > 0,
@@ -230,7 +296,9 @@ class CrossChainMixer:
             'results': results,
             'total_steps': len(results),
             'success_count': total_success,
-            'failed_count': total_failed
+            'failed_count': total_failed,
+            'temp_addresses': temp_addresses,
+            'privacy_level': 'maximum'
         }
 
 
