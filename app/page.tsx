@@ -110,7 +110,7 @@ const MIXING_MODES = {
     icon: "⚡",
     privacy: "⭐⭐⭐⭐⭐",
     time: "3-5 分钟",
-    description: "1-3秒延迟 + Tor隐藏IP",
+    description: "交叉混淆 · 隐藏IP · 快速到账",
     color: "blue",
     feeRate: 0.0003
   },
@@ -119,7 +119,7 @@ const MIXING_MODES = {
     icon: "🛡️",
     privacy: "⭐⭐⭐⭐⭐⭐⭐",
     time: "8-50 小时",
-    description: "跨链混币 + Tor + 长延迟",
+    description: "多链幽灵模式 · 完全匿名 · 无法追踪",
     color: "red",
     feeRate: 0.0006
   }
@@ -222,37 +222,10 @@ function StealthTransferApp() {
                   : "border-gray-200 bg-white hover:border-gray-300"
               }`}
             >
-              <div className="text-3xl mb-2">{modeConfig.icon}</div>
               <div className="font-semibold text-sm mb-1">{modeConfig.name}</div>
-              <div className="text-xs text-gray-600 mb-2">{modeConfig.description}</div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-yellow-600">{modeConfig.privacy}</span>
-                <span className="text-gray-500">⏱️ {modeConfig.time}</span>
-              </div>
-              <div className="mt-2 text-xs text-purple-600 font-semibold">
-                {modeConfig.feeRate} BNB/次
-              </div>
+              <div className="text-xs text-gray-600">{modeConfig.description}</div>
             </button>
           ))}
-        </div>
-        
-        {/* Mode Info */}
-        <div className={`mt-3 p-3 rounded-lg text-xs ${
-          mode === 'fast' ? 'bg-blue-50 border border-blue-200' :
-          'bg-red-50 border border-red-200'
-        }`}>
-          <div className="flex items-start space-x-2">
-            <span className="text-lg">{MIXING_MODES[mode as keyof typeof MIXING_MODES].icon}</span>
-            <div>
-              <p className="font-semibold mb-1">
-                {MIXING_MODES[mode as keyof typeof MIXING_MODES].name}
-              </p>
-              <p className="text-gray-700">
-                {mode === 'fast' && '多路径混币 + Tor隐藏IP（可选），3-5分钟完成'}
-                {mode === 'ultimate' && '跨链混币 + Tor隐藏IP + 超长延迟，8-50小时完成，适合大额资金'}
-              </p>
-            </div>
-          </div>
         </div>
       </div>
       
