@@ -1275,6 +1275,40 @@ export default function Home() {
       </header>
 
       <div className="container mx-auto px-6 py-8">
+        {/* SEO Content Block - visible to crawlers, hidden from users */}
+        <div className="sr-only" aria-hidden="false">
+          <h1>CYGJ Crypto Tools - Professional Web3 Toolbox</h1>
+          <p>
+            CYGJ is a professional Web3 toolbox for crypto hunters and DeFi enthusiasts.
+            Our platform provides essential on-chain tools including stealth transfer router,
+            HD wallet generator, batch transfer, token analyzer, gas tracker, and NFT batch mint.
+            Supporting 68+ blockchains including BSC, Ethereum, Polygon, Arbitrum and more.
+          </p>
+          <h2>Stealth Transfer Router</h2>
+          <p>
+            Professional multi-hop cross-chain relay solution for on-chain privacy protection.
+            Shield transaction traces and network IP with multi-layer isolation architecture.
+            Supports fast mode and ultimate privacy mode for different transfer needs.
+          </p>
+          <h2>HD Wallet Generator</h2>
+          <p>
+            BIP44 standard HD wallet generator. Generate multiple wallet addresses from a single mnemonic phrase.
+            Compatible with MetaMask, Trust Wallet and all major Web3 wallets.
+            Supports batch wallet generation for BSC, Ethereum and Polygon.
+          </p>
+          <h2>Batch Transfer Tool</h2>
+          <p>
+            Send tokens to multiple addresses in one transaction. Supports 10 to 10000 addresses.
+            CSV import, gas optimization, and real-time tracking. Essential tool for airdrops and bulk payments.
+          </p>
+          <h2>Web3 Tools for Crypto Hunters</h2>
+          <p>
+            CYGJ Crypto Tools is your essential Web3 toolbox. Whether you need batch wallet generation,
+            batch address balance check, stealth transfer, or DeFi utilities — we have you covered.
+            Free to use, non-custodial, your keys stay with you.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left Sidebar - Tool List */}
           <div className="lg:col-span-1">
