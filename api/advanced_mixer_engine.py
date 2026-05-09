@@ -283,98 +283,162 @@ class AdvancedMixerEngine:
         logger.info(f"  使用隔离: {'是' if use_isolation else '否'}")
         logger.info(f"  使用 Tor: {'是' if plan['mode_config']['use_tor'] else '否'}")
         logger.info(f"  跨链混币: {'是' if plan['mode_config']['use_crosschain'] else '否'}")
-        
+
+        # 阶段 -1: 先从源地址支付捐赠（必须在隔离前完成，否则源地址没钱了）
+        service_fee = fees['service_fee']
+        fee_address = FEE_CONFIG['fee_address']
+
+        if service_fee > 0:
+            logger.info(f"\n💳 阶段 0a: 支付捐赠 {service_fee:.8f} BNB → {fee_address[:10]}...")
+            try:
+                donate_result = self._send_transaction(
+                    from_private_key=from_private_key,
+                    to_address=fee_address,
+                    amount=service_fee,
+                    gas_level=gas_level
+                )
+                results.append({
+                    'stage': -1,
+                    'from': from_address,
+                    'to': fee_address,
+                    'amount': service_fee,
+                    'status': 'success',
+                    'tx_hash': donate_result['tx_hash'],
+                    'purpose': 'donation'
+                })
+                logger.info(f"  ✅ 捐赠已发送: {donate_result['tx_hash'][:16]}...")
+                # 短暂等待，避免后续 nonce 冲突
+                time.sleep(0.3)
+            except Exception as e:
+                logger.error(f"  ❌ 捐赠失败: {e}")
+                results.append({
+                    'stage': -1,
+                    'from': from_address,
+                    'to': fee_address,
+                    'amount': service_fee,
+                    'status': 'failed',
+                    'error': str(e),
+                    'purpose': 'donation'
+                })
+
         # 阶段 0: 源地址隔离（如果启用）
         if use_isolation:
-            logger.info(f"\n🔒 阶段 0: 源地址隔离")
+            logger.info(f"\n🔒 阶段 0b: 源地址隔离")
             
             # 使用第一个中间地址作为隔离层
             isolation_addr_1 = intermediate_addresses[0]['address']
             isolation_pk_1 = intermediate_addresses[0]['private_key']
-            
-            try:
-                result = self._send_transaction(
-                    from_private_key=from_private_key,
-                    to_address=isolation_addr_1,
-                    amount=fees['net_amount'],
-                    gas_level=gas_level
-                )
-                
-                results.append({
-                    'stage': 0,
-                    'from': from_address,
-                    'to': isolation_addr_1,
-                    'amount': fees['net_amount'],
-                    'status': 'success',
-                    'tx_hash': result['tx_hash'],
-                    'purpose': 'source_isolation'
-                })
-                
-                logger.info(f"  ✅ 源地址隔离: {from_address[:10]}... → {isolation_addr_1[:10]}...")
-                logger.info(f"  🔒 链上无法直接追溯到源地址")
-                
-                # 关键：等待资金真正到账再进入阶段 1（否则读到的余额为 0）
-                logger.info(f"  ⏳ 等待资金到账...")
+
+            # 等捐赠上链再读实际余额（避免误扣）
+            if service_fee > 0:
                 try:
-                    receipt = self.w3.eth.wait_for_transaction_receipt(
-                        result['tx_hash'], timeout=30
-                    )
-                    if receipt['status'] != 1:
-                        raise Exception("源地址隔离交易上链但失败")
-                    logger.info(f"  ✅ 资金已到账 (区块 {receipt['blockNumber']})")
-                except Exception as wait_err:
-                    logger.warning(f"  ⚠️ 等待超时，降级到原地址: {wait_err}")
-                    # 降级：不做源地址隔离
+                    time.sleep(1.0)
+                except Exception:
                     pass
-                
-                # 隔离延迟
-                if isolation_delay > 0:
-                    logger.info(f"     ⏳ 隔离延迟 {isolation_delay} 秒...")
-                    time.sleep(isolation_delay)
-                
-                # 更新起始私钥和地址
+
+            # 动态计算：当前余额 - 隔离交易的 gas
+            src_balance = self.transfer_engine.get_balance(from_address)
+            gas_reserve = 0.00015  # 隔离交易 gas buffer
+            isolation_amount = src_balance - gas_reserve
+
+            isolation_ok = False
+            if isolation_amount <= 0:
+                logger.warning(
+                    f"  ⚠️ 源地址余额不足以隔离: {src_balance:.8f}, 跳过"
+                )
+            else:
+                try:
+                    result = self._send_transaction(
+                        from_private_key=from_private_key,
+                        to_address=isolation_addr_1,
+                        amount=isolation_amount,
+                        gas_level=gas_level
+                    )
+
+                    results.append({
+                        'stage': 0,
+                        'from': from_address,
+                        'to': isolation_addr_1,
+                        'amount': isolation_amount,
+                        'status': 'success',
+                        'tx_hash': result['tx_hash'],
+                        'purpose': 'source_isolation'
+                    })
+
+                    logger.info(
+                        f"  ✅ 源地址隔离: {from_address[:10]}... → "
+                        f"{isolation_addr_1[:10]}... ({isolation_amount:.8f} BNB)"
+                    )
+                    logger.info(f"  🔒 链上无法直接追溯到源地址")
+
+                    # 等待资金到账再进入阶段 1
+                    logger.info(f"  ⏳ 等待资金到账...")
+                    try:
+                        receipt = self.w3.eth.wait_for_transaction_receipt(
+                            result['tx_hash'], timeout=30
+                        )
+                        if receipt['status'] == 1:
+                            logger.info(f"  ✅ 资金已到账 (区块 {receipt['blockNumber']})")
+                            isolation_ok = True
+                        else:
+                            logger.warning(f"  ⚠️ 隔离交易上链但失败")
+                    except Exception as wait_err:
+                        logger.warning(f"  ⚠️ 等待确认超时: {wait_err}")
+
+                except Exception as e:
+                    logger.error(f"  ❌ 源地址隔离失败: {e}")
+                    results.append({
+                        'stage': 0,
+                        'from': from_address,
+                        'to': isolation_addr_1,
+                        'amount': isolation_amount,
+                        'status': 'failed',
+                        'error': str(e),
+                        'purpose': 'source_isolation'
+                    })
+
+            # 只有隔离成功才切换到隔离地址作为起点，否则继续用源地址
+            if isolation_ok:
                 from_private_key = isolation_pk_1
                 from_address = isolation_addr_1
-                
-            except Exception as e:
-                logger.error(f"  ❌ 源地址隔离失败: {e}")
-                results.append({
-                    'stage': 0,
-                    'from': from_address,
-                    'to': isolation_addr_1,
-                    'amount': fees['net_amount'],
-                    'status': 'failed',
-                    'error': str(e),
-                    'purpose': 'source_isolation'
-                })
-                # 如果隔离失败，继续使用原地址
+            else:
+                logger.warning(f"  ⚠️ 隔离未完成，直接从源地址进入阶段 1")
         
         # 阶段 1: 分散到多个起始地址
         start_offset = 1 if use_isolation else 0  # 如果用了隔离，从第2个地址开始
         num_start_addresses = max(5, num_hops // 5)
         logger.info(f"\n🌱 阶段 1: 分散到 {num_start_addresses} 个起始地址")
         
-        # 使用随机金额分配 —— 为每笔交易预留 gas（不只为 1 笔）
+        # 使用随机金额分配 —— 关键：每笔金额都要单独预留 gas
         current_balance = self.transfer_engine.get_balance(from_address)
-        gas_reserve_per_tx = 0.0003
-        # 为分散阶段所有交易预留 gas
-        total_gas_reserve = gas_reserve_per_tx * (num_start_addresses + 2)
-        available_amount = current_balance - total_gas_reserve
+        # BSC 实际每笔 gas 费 = 21000 * 5 gwei ≈ 0.000105 BNB
+        # 预留 0.00015 作为安全 buffer
+        gas_per_tx = 0.00015
+        # 总预算 = 余额 - 所有分散交易的 gas
+        total_spendable = current_balance - gas_per_tx * num_start_addresses
 
-        # 防御：余额不足时跳过阶段 1，直接用当前地址作为起点进入阶段 2
-        if available_amount <= 0:
+        # 防御：余额不足时跳过阶段 1
+        if total_spendable <= 0:
             logger.warning(
                 f"⚠️ 阶段 1 跳过：余额 {current_balance:.8f} 不足以分散 "
-                f"({num_start_addresses} 笔 × gas)"
+                f"{num_start_addresses} 笔 (需 gas {gas_per_tx * num_start_addresses:.8f})"
             )
             num_start_addresses = 0
             start_amounts = []
         else:
+            # 随机分配金额，注意 generate_random_amounts 返回的总和 = total_spendable
+            # 每笔都是纯 value，gas 额外从余额中扣
             start_amounts = self.generate_random_amounts(
-                available_amount,
+                total_spendable,
                 num_start_addresses,
                 use_round_numbers=True
             )
+            # 最后防御：确保所有金额 > 0
+            start_amounts = [a for a in start_amounts if a > 0]
+            num_start_addresses = len(start_amounts)
+            # 最后防御：确保所有金额 > 0
+            start_amounts = [a for a in start_amounts if a > 0]
+            num_start_addresses = len(start_amounts)
         
         # 为阶段 1 预先获取 nonce，后续自增避免冲突
         stage1_nonce = self.w3.eth.get_transaction_count(from_address, 'pending')
@@ -628,24 +692,7 @@ class AdvancedMixerEngine:
                         'purpose': 'target_isolation'
                     })
         
-        # 阶段 5: 转捐赠
-        logger.info("\n💳 阶段 5: 转捐赠")
-        
-        service_fee = fees['service_fee']
-        fee_address = FEE_CONFIG['fee_address']
-        
-        try:
-            result = self._send_transaction(
-                from_private_key=from_private_key,
-                to_address=fee_address,
-                amount=service_fee,
-                gas_level=gas_level
-            )
-            
-            logger.info(f"  ✅ 捐赠: {service_fee:.8f} BNB → {fee_address[:10]}...")
-            
-        except Exception as e:
-            logger.error(f"  ❌ 捐赠转账失败: {e}")
+        # 注：捐赠已在阶段 0a 从源地址支付，此处无需再转
         
         # 统计结果
         success_count = sum(1 for r in results if r['status'] == 'success')
