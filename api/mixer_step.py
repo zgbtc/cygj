@@ -58,20 +58,17 @@ GAS_RESERVE = {
 
 
 def connect_chain(chain: str):
-    """并发选最快的 RPC 连接指定链"""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
+    """顺序尝试 RPC，选第一个可用的（短超时，快失败）"""
     chain_cfg = CHAINS.get(chain)
-    # 如果是 relay chain（polygon/arbitrum 等），用 lifi_bridge 里的 RPC
     if not chain_cfg:
-        # fallback RPC（同 lifi_bridge）
+        # relay chain RPCs
         fallback_rpcs = {
-            'polygon': ['https://polygon-rpc.com', 'https://polygon.llamarpc.com', 'https://polygon.drpc.org'],
-            'arbitrum': ['https://arb1.arbitrum.io/rpc', 'https://arbitrum.llamarpc.com', 'https://arbitrum.drpc.org'],
-            'optimism': ['https://mainnet.optimism.io', 'https://optimism.llamarpc.com'],
-            'base': ['https://mainnet.base.org', 'https://base.llamarpc.com'],
-            'avalanche': ['https://api.avax.network/ext/bc/C/rpc'],
-            'ethereum': ['https://eth.llamarpc.com', 'https://ethereum.publicnode.com']
+            'polygon': ['https://polygon.llamarpc.com', 'https://polygon-rpc.com', 'https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com'],
+            'arbitrum': ['https://arbitrum.llamarpc.com', 'https://arb1.arbitrum.io/rpc', 'https://arbitrum.drpc.org', 'https://arbitrum-one.publicnode.com'],
+            'optimism': ['https://optimism.llamarpc.com', 'https://mainnet.optimism.io', 'https://optimism.drpc.org'],
+            'base': ['https://base.llamarpc.com', 'https://mainnet.base.org', 'https://base.drpc.org'],
+            'avalanche': ['https://api.avax.network/ext/bc/C/rpc', 'https://avalanche.drpc.org'],
+            'ethereum': ['https://eth.llamarpc.com', 'https://ethereum.publicnode.com', 'https://eth.drpc.org']
         }
         rpc_urls = fallback_rpcs.get(chain, [])
     else:
@@ -81,28 +78,19 @@ def connect_chain(chain: str):
     if not rpc_urls:
         raise ConnectionError(f"未配置 {chain} 的 RPC")
 
-    def try_rpc(url):
+    expected_chain_id = CHAIN_ID_MAP.get(chain)
+
+    for url in rpc_urls[:8]:
         try:
-            w3 = Web3(Web3.HTTPProvider(url, request_kwargs={'timeout': 3}))
-            _ = w3.eth.block_number
-            return (url, w3)
-        except Exception:
-            return (url, None)
-
-    with ThreadPoolExecutor(max_workers=min(6, len(rpc_urls))) as executor:
-        futures = {executor.submit(try_rpc, url): url for url in rpc_urls}
-        for future in as_completed(futures, timeout=10):
-            try:
-                url, w3 = future.result()
-                if w3 is not None:
-                    for f in futures:
-                        if f is not future:
-                            f.cancel()
-                    return w3
-            except Exception:
+            w3 = Web3(Web3.HTTPProvider(url, request_kwargs={'timeout': 2.5}))
+            cid = w3.eth.chain_id
+            if expected_chain_id and cid != expected_chain_id:
                 continue
+            return w3
+        except Exception:
+            continue
 
-    raise ConnectionError(f"所有 {chain} RPC 不可用")
+    raise ConnectionError(f"{chain} 所有 RPC 不可用")
 
 
 def get_private_key(plan: dict, key_idx: int) -> str:

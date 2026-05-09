@@ -40,49 +40,42 @@ class TransferEngine:
         logger.info(f"已连接到 {self.chain_config['name']}")
 
     def _connect_fastest(self) -> Web3:
-        """并发测试所有 RPC，返回最先响应成功的。超时快速失败。"""
-        from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
-        
+        """
+        按顺序尝试 RPC，选第一个可用的。
+        使用 eth_chainId（比 block_number 快 10 倍）做轻量检测。
+        短超时（2秒/个）确保在 Vercel Serverless 10s 内完成。
+        """
         rpc_urls = self.chain_config.get('rpc_urls') or [self.chain_config.get('rpc_url')]
         rpc_urls = [u for u in rpc_urls if u]
-        
+
         if not rpc_urls:
             raise ConnectionError("未配置 RPC URL")
 
-        def try_rpc(rpc_url):
-            """测试单个 RPC，成功返回 Web3 实例"""
+        expected_chain_id = self.chain_config.get('chain_id')
+        last_error = None
+
+        # 顺序尝试，短超时。绝大多数 RPC 要么 < 500ms 回应，要么彻底不通
+        for rpc_url in rpc_urls[:8]:  # 最多试前 8 个
             try:
                 w3 = Web3(Web3.HTTPProvider(
                     rpc_url,
-                    request_kwargs={'timeout': 3}  # 快速超时
+                    request_kwargs={'timeout': 2.5}
                 ))
-                # 用 block_number 做真连通性验证
-                _ = w3.eth.block_number
-                return (rpc_url, w3)
-            except Exception:
-                return (rpc_url, None)
-
-        # 并发测试，最多 8 个同时进行
-        max_workers = min(8, len(rpc_urls))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(try_rpc, url): url for url in rpc_urls}
-            
-            # 取第一个成功的
-            for future in as_completed(futures, timeout=10):
-                try:
-                    rpc_url, w3 = future.result()
-                    if w3 is not None:
-                        logger.info(f"✅ 选用最快 RPC: {rpc_url}")
-                        self.chain_config['_active_rpc'] = rpc_url
-                        # 取消其他进行中的任务
-                        for f in futures:
-                            if f is not future:
-                                f.cancel()
-                        return w3
-                except Exception:
+                # chain_id 比 block_number 轻量
+                chain_id = w3.eth.chain_id
+                if expected_chain_id and chain_id != expected_chain_id:
+                    logger.warning(f"RPC {rpc_url} chain_id {chain_id} != 期望 {expected_chain_id}")
                     continue
+                logger.info(f"✅ 选用 RPC: {rpc_url} (chain_id={chain_id})")
+                self.chain_config['_active_rpc'] = rpc_url
+                return w3
+            except Exception as e:
+                last_error = e
+                # 只记前 100 字符，避免日志爆炸
+                logger.debug(f"RPC {rpc_url} 失败: {str(e)[:100]}")
+                continue
 
-        logger.error(f"所有 {len(rpc_urls)} 个 RPC 均不可用")
+        logger.error(f"所有 RPC 不可用. 最后错误: {last_error}")
         return None
     
     def validate_addresses(self, addresses: List[str]) -> tuple[bool, str]:
