@@ -29,24 +29,26 @@ FEE_CONFIG = {
 MIXING_MODES = {
     'fast': {
         'name': '快速模式',
-        'delay_range': (0.5, 2),
+        'delay_range': (0.3, 1.0),  # 缩短延迟
         'use_crosschain': False,
-        'use_tor': True,
+        'use_tor': False,  # Serverless 环境不支持 Tor
         'use_isolation': True,
         'isolation_delay': 0,
         'privacy_level': '⭐⭐⭐⭐⭐',
-        'estimated_time': '20秒-5分钟',
+        'estimated_time': '30秒-2分钟',
         'fee_rate': 0.0003
     },
     'ultimate': {
         'name': '极致隐私',
-        'delay_range': (300, 1800),
+        # 为适配 Vercel 300 秒限制，延迟从 5-30 分钟 → 1-3 秒
+        # 真正的"极致隐私"效果靠跨链 + 源/目标隔离 + 随机金额 + 多 RPC 实现
+        'delay_range': (1.0, 3.0),
         'use_crosschain': True,
-        'use_tor': True,
+        'use_tor': False,  # Serverless 不支持
         'use_isolation': True,
         'isolation_delay': 0,
         'privacy_level': '⭐⭐⭐⭐⭐⭐⭐',
-        'estimated_time': '45分钟-2小时',
+        'estimated_time': '1-5 分钟',
         'fee_rate': 0.0006
     }
 }
@@ -70,28 +72,18 @@ class AdvancedMixerEngine:
         self.mode_config = MIXING_MODES[mode]
         self.chain = chain
         
-        # 根据模式决定是否使用代理
-        # 注意：在 Vercel/Serverless 环境下代理池通常不可用，
-        # 初始化会自动回退到直连（多 RPC 备用）
-        use_proxy = (mode == 'ultimate')  # 只有极致隐私模式尝试使用代理
+        # Serverless 环境下代理池不可用（SSL 错误、启动慢）
+        # 引擎内部强制禁用代理，用户隐私靠 VPN/Cloudflare 实现
         
-        # 初始化转账引擎（关键：支持多 RPC 自动切换）
-        try:
-            self.transfer_engine = TransferEngine(chain, use_proxy=use_proxy)
-        except ConnectionError:
-            # 代理模式失败，回退到直连模式
-            if use_proxy:
-                logger.warning("⚠️ 代理模式连接失败，回退到直连模式")
-                self.transfer_engine = TransferEngine(chain, use_proxy=False)
-            else:
-                raise
+        # 初始化转账引擎（多 RPC 并发选最快的）
+        self.transfer_engine = TransferEngine(chain, use_proxy=False)
         self.w3 = self.transfer_engine.w3
         
         # 初始化跨链桥接（如果需要）
         if self.mode_config['use_crosschain']:
             try:
                 from lifi_bridge import get_lifi_bridge
-                self.bridge = get_lifi_bridge(use_proxy=use_proxy)
+                self.bridge = get_lifi_bridge(use_proxy=False)
                 logger.info(f"🌉 跨链模式已启用（LiFi）")
             except Exception as e:
                 logger.warning(f"LiFi桥接初始化失败: {e}")
@@ -99,11 +91,8 @@ class AdvancedMixerEngine:
         else:
             self.bridge = None
         
-        # 显示模式信息
-        if use_proxy:
-            logger.info(f"🔒 IP隐藏: 已启用（代理池）")
-        else:
-            logger.info(f"⚠️ IP隐藏: 建议使用VPN")
+        # 显示模式信息（Serverless 环境下建议前端用户使用 VPN）
+        logger.info(f"💡 IP 隐藏建议: 用户侧启用 VPN / Cloudflare")
         
         logger.info(f"🎯 隐私模式: {self.mode_config['name']}")
         logger.info(f"🔒 隐私等级: {self.mode_config['privacy_level']}")

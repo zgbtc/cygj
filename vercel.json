@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/mixer.py": {
+      "maxDuration": 60
+    }
+  }
+}
