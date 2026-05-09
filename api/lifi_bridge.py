@@ -247,54 +247,77 @@ class LiFiBridge:
 
     def multi_chain_mixing_path(self, base_chain: str, num_hops: int) -> list:
         """
-        生成多链隐私转账路径
+        生成多链隐私转账路径（每 3 跳跨链一次）
         
         Args:
             base_chain: 起始链（如 'bsc', 'bsc_testnet'）
-            num_hops: 总跳数
+            num_hops: 总跳数（用户指定）
         
         Returns:
-            路径列表，每个元素为 {'chain': str, 'hop': int}
+            路径列表，每个元素为 {'chain': str, 'hop': int, 'type': 'same_chain'|'cross_chain'}
+        
+        规则：
+        - 每 3 跳后插入一次跨链
+        - 跨链到随机中间链
+        - 最后一次跨链回到起始链（目标地址在起始链）
         """
         import random
 
-        # 标准化链名（去掉 _testnet 后缀）
+        # 标准化链名
         chain_key = base_chain.replace('_testnet', '')
         if chain_key not in CHAIN_IDS:
             chain_key = 'bsc'
 
         # 可用的中间链（排除起始链）
-        available_chains = [c for c in CHAIN_IDS.keys() if c != chain_key]
         relay_chains = ['polygon', 'arbitrum', 'optimism', 'base']
-        relay_chains = [c for c in relay_chains if c in CHAIN_IDS]
+        relay_chains = [c for c in relay_chains if c in CHAIN_IDS and c != chain_key]
 
         path = []
-        hops_per_segment = max(1, num_hops // 4)
+        current_chain = chain_key
+        cross_interval = 3  # 每 3 跳跨链一次
 
-        # 段1：在起始链上跳转
-        for i in range(hops_per_segment):
-            path.append({'chain': chain_key, 'hop': len(path) + 1, 'type': 'same_chain'})
+        for hop_idx in range(1, num_hops + 1):
+            # 判断是否需要跨链
+            is_cross_hop = (hop_idx % cross_interval == 0) and (hop_idx < num_hops)
+            is_last_hop = (hop_idx == num_hops)
 
-        # 段2：跨链到中间链1
-        mid_chain_1 = random.choice(relay_chains)
-        path.append({'chain': mid_chain_1, 'hop': len(path) + 1, 'type': 'cross_chain'})
-        for i in range(hops_per_segment):
-            path.append({'chain': mid_chain_1, 'hop': len(path) + 1, 'type': 'same_chain'})
+            if is_last_hop and current_chain != chain_key:
+                # 最后一跳：确保回到起始链（目标地址在起始链）
+                path.append({
+                    'chain': chain_key,
+                    'hop': hop_idx,
+                    'type': 'cross_chain',
+                    'from_chain': current_chain,
+                    'to_chain': chain_key
+                })
+                current_chain = chain_key
+            elif is_cross_hop:
+                # 跨链跳：切到一个不同的链
+                candidates = [c for c in relay_chains + [chain_key] if c != current_chain]
+                if not candidates:
+                    candidates = relay_chains or [chain_key]
+                next_chain = random.choice(candidates)
+                path.append({
+                    'chain': next_chain,
+                    'hop': hop_idx,
+                    'type': 'cross_chain',
+                    'from_chain': current_chain,
+                    'to_chain': next_chain
+                })
+                current_chain = next_chain
+            else:
+                # 同链跳
+                path.append({
+                    'chain': current_chain,
+                    'hop': hop_idx,
+                    'type': 'same_chain'
+                })
 
-        # 段3：跨链到中间链2
-        remaining = [c for c in relay_chains if c != mid_chain_1]
-        mid_chain_2 = random.choice(remaining) if remaining else mid_chain_1
-        path.append({'chain': mid_chain_2, 'hop': len(path) + 1, 'type': 'cross_chain'})
-        for i in range(hops_per_segment):
-            path.append({'chain': mid_chain_2, 'hop': len(path) + 1, 'type': 'same_chain'})
-
-        # 段4：跨链回起始链
-        path.append({'chain': chain_key, 'hop': len(path) + 1, 'type': 'cross_chain'})
-        remaining_hops = num_hops - len(path)
-        for i in range(max(0, remaining_hops)):
-            path.append({'chain': chain_key, 'hop': len(path) + 1, 'type': 'same_chain'})
-
-        logger.info(f"🗺️ 生成多链路径: {len(path)} 跳, 经过 {chain_key} → {mid_chain_1} → {mid_chain_2} → {chain_key}")
+        cross_count = sum(1 for p in path if p['type'] == 'cross_chain')
+        logger.info(
+            f"🗺️ 生成多链路径: {num_hops} 跳, 每 {cross_interval} 跳跨链一次, "
+            f"共 {cross_count} 次跨链"
+        )
         return path
 
 
