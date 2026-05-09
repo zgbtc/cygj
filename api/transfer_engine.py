@@ -24,6 +24,7 @@ class TransferEngine:
             raise ValueError(f"不支持的链: {chain}")
         
         self.chain_config = CHAINS[chain]
+        self.chain = chain
         self.use_proxy = use_proxy
         
         # 初始化 Web3 连接
@@ -35,17 +36,58 @@ class TransferEngine:
                 logger.info(f"🕵️ 已启用代理池隐藏IP")
             except Exception as e:
                 logger.warning(f"代理池初始化失败，使用直连: {e}")
-                self.w3 = Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
+                self.w3 = self._connect_with_fallback()
         else:
-            self.w3 = Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
+            self.w3 = self._connect_with_fallback()
         
         if not self.w3.is_connected():
-            raise ConnectionError(f"无法连接到 {chain} 网络")
+            raise ConnectionError(
+                f"无法连接到 {chain} 网络。已尝试所有备用 RPC，请稍后重试或联系管理员。"
+            )
         
         logger.info(f"已连接到 {self.chain_config['name']}")
+
+    def _connect_with_fallback(self) -> Web3:
+        """按顺序尝试多个 RPC URL 直到连接成功"""
+        # 优先使用 rpc_urls 列表；退回到单一的 rpc_url
+        rpc_urls = self.chain_config.get('rpc_urls') or [self.chain_config.get('rpc_url')]
+        rpc_urls = [u for u in rpc_urls if u]  # 过滤空值
+
+        last_error = None
+        for idx, rpc_url in enumerate(rpc_urls):
+            try:
+                logger.info(f"[{idx+1}/{len(rpc_urls)}] 尝试 RPC: {rpc_url}")
+                w3 = Web3(Web3.HTTPProvider(
+                    rpc_url,
+                    request_kwargs={'timeout': 10}
+                ))
+                if w3.is_connected():
+                    # 进一步验证：尝试获取区块号
+                    try:
+                        _ = w3.eth.block_number
+                        logger.info(f"✅ 已连接到: {rpc_url}")
+                        # 记录当前使用的 RPC
+                        self.chain_config['_active_rpc'] = rpc_url
+                        return w3
+                    except Exception as e:
+                        logger.warning(f"  RPC 连接但无法获取区块: {e}")
+                        continue
+                else:
+                    logger.warning(f"  RPC 无响应")
+            except Exception as e:
+                last_error = e
+                logger.warning(f"  RPC 失败: {type(e).__name__}: {str(e)[:100]}")
+                continue
+
+        # 所有 RPC 都失败，返回最后一个（调用方会检查 is_connected）
+        logger.error(f"所有 {len(rpc_urls)} 个 RPC 连接失败。最后错误: {last_error}")
+        return Web3(Web3.HTTPProvider(rpc_urls[-1] if rpc_urls else '', request_kwargs={'timeout': 10}))
     
     def _create_web3_with_proxy(self, retry_count: int = 3) -> Web3:
-        """创建使用代理的Web3实例，支持失败重试"""
+        """创建使用代理的Web3实例，支持失败重试和多 RPC 切换"""
+        rpc_urls = self.chain_config.get('rpc_urls') or [self.chain_config.get('rpc_url')]
+        rpc_urls = [u for u in rpc_urls if u]
+
         for attempt in range(retry_count):
             try:
                 proxy = self.proxy_pool.get_random_proxy()
@@ -57,7 +99,7 @@ class TransferEngine:
                     
                     if not proxy:
                         logger.warning("刷新后仍无可用代理，使用直连")
-                        return Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
+                        return self._connect_with_fallback()
                 
                 logger.info(f"使用代理: {proxy}")
                 session = requests.Session()
@@ -74,29 +116,33 @@ class TransferEngine:
                 )
                 session.mount('http://', adapter)
                 session.mount('https://', adapter)
-                
-                w3 = Web3(Web3.HTTPProvider(
-                    self.chain_config['rpc_url'],
-                    session=session,
-                    request_kwargs={'timeout': 30}
-                ))
-                
-                # 测试连接
-                if w3.is_connected():
-                    logger.info(f"✅ 代理连接成功")
-                    return w3
-                else:
-                    logger.warning(f"代理连接失败，移除: {proxy}")
-                    self.proxy_pool.remove_proxy(proxy)
+
+                # 通过代理尝试每个 RPC
+                for rpc_url in rpc_urls:
+                    try:
+                        w3 = Web3(Web3.HTTPProvider(
+                            rpc_url,
+                            session=session,
+                            request_kwargs={'timeout': 30}
+                        ))
+                        if w3.is_connected():
+                            logger.info(f"✅ 代理连接成功: {rpc_url}")
+                            self.chain_config['_active_rpc'] = rpc_url
+                            return w3
+                    except Exception:
+                        continue
+
+                logger.warning(f"代理 {proxy} 无法连接任何 RPC，移除")
+                self.proxy_pool.remove_proxy(proxy)
                     
             except Exception as e:
-                logger.warning(f"代理 {proxy} 失败: {e}")
+                logger.warning(f"代理尝试失败: {e}")
                 if proxy:
                     self.proxy_pool.remove_proxy(proxy)
         
-        # 所有代理都失败，使用直连
+        # 所有代理都失败，使用直连（多 RPC 回退）
         logger.warning("所有代理尝试失败，使用直连")
-        return Web3(Web3.HTTPProvider(self.chain_config['rpc_url']))
+        return self._connect_with_fallback()
     
     def validate_addresses(self, addresses: List[str]) -> tuple[bool, str]:
         """验证地址列表"""

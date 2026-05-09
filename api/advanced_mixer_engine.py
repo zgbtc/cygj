@@ -71,10 +71,20 @@ class AdvancedMixerEngine:
         self.chain = chain
         
         # 根据模式决定是否使用代理
-        use_proxy = (mode == 'ultimate')  # 只有极致隐私模式使用代理
+        # 注意：在 Vercel/Serverless 环境下代理池通常不可用，
+        # 初始化会自动回退到直连（多 RPC 备用）
+        use_proxy = (mode == 'ultimate')  # 只有极致隐私模式尝试使用代理
         
-        # 初始化转账引擎
-        self.transfer_engine = TransferEngine(chain, use_proxy=use_proxy)
+        # 初始化转账引擎（关键：支持多 RPC 自动切换）
+        try:
+            self.transfer_engine = TransferEngine(chain, use_proxy=use_proxy)
+        except ConnectionError:
+            # 代理模式失败，回退到直连模式
+            if use_proxy:
+                logger.warning("⚠️ 代理模式连接失败，回退到直连模式")
+                self.transfer_engine = TransferEngine(chain, use_proxy=False)
+            else:
+                raise
         self.w3 = self.transfer_engine.w3
         
         # 初始化跨链桥接（如果需要）
