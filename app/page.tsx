@@ -1198,7 +1198,15 @@ export default function Home() {
       totalUsers: "Total Users",
       disclaimer: "Disclaimer",
       terms: "Terms",
-      privacyPolicy: "Privacy"
+      privacyPolicy: "Privacy",
+      toolDescriptions: {
+        1: "68+ blockchain supported. Professional multi-hop cross-chain relay solution, shielding on-chain transaction traces and network IP, delivering reliable Web3 identity and asset privacy protection.",
+        2: "BIP44 standard HD wallet generator, generate multiple addresses from mnemonic",
+        3: "Batch transfer tool, send tokens to multiple addresses at once",
+        4: "Token analysis tool, view holder distribution, transaction history and more",
+        5: "Real-time gas price tracking, help you choose the best transaction timing",
+        6: "Batch NFT minting tool, supports multiple standards"
+      }
     },
     zh: {
       tools: "工具",
@@ -1210,7 +1218,15 @@ export default function Home() {
       totalUsers: "总用户数",
       disclaimer: "免责声明",
       terms: "服务条款",
-      privacyPolicy: "隐私政策"
+      privacyPolicy: "隐私政策",
+      toolDescriptions: {
+        1: "支持68+条区块链。专业多跳跨链中继方案，屏蔽链上交易痕迹与网络IP，提供可靠的Web3身份与资产隐私保护。",
+        2: "BIP44标准HD钱包生成器，从助记词生成多个地址",
+        3: "批量转账工具，一次性向多个地址发送代币",
+        4: "代币分析工具，查看持仓分布、交易历史等",
+        5: "实时Gas价格追踪，帮助您选择最佳交易时机",
+        6: "批量NFT铸造工具，支持多种标准"
+      }
     }
   };
 
@@ -1302,7 +1318,7 @@ export default function Home() {
                 <div className="text-center mb-4">
                   <div className="text-4xl mb-2">{selectedTool.icon}</div>
                   <h3 className="font-bold text-sm text-white">{selectedTool.name}</h3>
-                  <p className="text-xs text-gray-400 mt-1">{selectedTool.description}</p>
+                  <p className="text-xs text-gray-400 mt-1">{text.toolDescriptions[selectedTool.id as keyof typeof text.toolDescriptions]}</p>
                 </div>
 
                 {selectedTool.status === "active" && (
