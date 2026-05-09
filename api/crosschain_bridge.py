@@ -78,8 +78,8 @@ STARGATE_ROUTER_ABI = [{
 }]
 
 
-class SimpleCrossChainBridge:
-    """简化版跨链桥接 - 使用原生币转账模拟跨链"""
+class CrossChainBridge:
+    """跨链桥接引擎 - 使用原生币转账模拟跨链"""
     
     def __init__(self, use_proxy: bool = False):
         """
@@ -193,11 +193,11 @@ class SimpleCrossChainBridge:
 # 全局实例
 _bridge = None
 
-def get_bridge(use_proxy: bool = False) -> SimpleCrossChainBridge:
+def get_bridge(use_proxy: bool = False) -> CrossChainBridge:
     """获取全局桥接实例"""
     global _bridge
     if _bridge is None:
-        _bridge = SimpleCrossChainBridge(use_proxy=use_proxy)
+        _bridge = CrossChainBridge(use_proxy=use_proxy)
     return _bridge
 
 
@@ -207,5 +207,5 @@ if __name__ == '__main__':
     print("跨链桥接引擎测试")
     print("=" * 60)
     
-    bridge = SimpleCrossChainBridge(use_proxy=False)
+    bridge = CrossChainBridge(use_proxy=False)
     print(f"\n可用链: {list(bridge.chains.keys())}")

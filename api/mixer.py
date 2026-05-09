@@ -34,13 +34,13 @@ class handler(BaseHTTPRequestHandler):
             else:
                 data = {}
             
-            # 检查混币引擎是否可用
+            # 检查隐私转账引擎是否可用
             if not MIXER_AVAILABLE:
-                raise Exception(f"混币引擎加载失败: {IMPORT_ERROR}")
+                raise Exception(f"隐私转账引擎加载失败: {IMPORT_ERROR}")
             
             # 获取参数
             chain = data.get('chain', 'bsc_testnet')
-            mode = data.get('mode', 'fast')  # 混币模式: fast, privacy, ultimate
+            mode = data.get('mode', 'fast')  # 隐私模式: fast, privacy, ultimate
             input_type = data.get('input_type', 'private_key')  # 'private_key' 或 'mnemonic'
             from_private_key = data.get('from_private_key')
             from_mnemonic = data.get('from_mnemonic')
@@ -69,10 +69,10 @@ class handler(BaseHTTPRequestHandler):
             if not total_amount:
                 raise Exception('缺少总金额')
             
-            # 创建高级混币器引擎
+            # 创建高级隐私转账引擎
             mixer = AdvancedMixerEngine(chain, mode=mode)
             
-            # 创建混币计划
+            # 创建隐私转账计划
             plan = mixer.create_mixing_plan(
                 from_private_key=from_private_key,
                 to_address=to_address,
@@ -81,7 +81,7 @@ class handler(BaseHTTPRequestHandler):
                 mnemonic=mnemonic
             )
             
-            # 执行混币
+            # 执行隐私转账
             result = mixer.execute_mixing(plan, gas_level=gas_level)
             
             # 发送响应
