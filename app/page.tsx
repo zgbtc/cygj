@@ -992,35 +992,37 @@ export default function Home() {
                     </div>
 
                     {/* Legal Links */}
-                    <div className="mt-4 pt-4 border-t border-[#d4af37]/20">
-                      <div className="flex flex-col gap-2 text-xs text-gray-400">
+                    <div className="mt-3 pt-3 border-t border-[#d4af37]/20">
+                      <div className="flex flex-wrap items-center justify-center gap-1 text-[10px] text-gray-500 leading-tight">
                         <a 
                           href="/disclaimer" 
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hover:text-[#d4af37] transition-colors duration-200 text-center"
+                          className="hover:text-[#d4af37] transition-colors duration-200"
                         >
                           Disclaimer
                         </a>
+                        <span>|</span>
                         <a 
                           href="/terms" 
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hover:text-[#d4af37] transition-colors duration-200 text-center"
+                          className="hover:text-[#d4af37] transition-colors duration-200"
                         >
-                          Terms of Service
+                          Terms
                         </a>
+                        <span>|</span>
                         <a 
                           href="/privacy" 
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hover:text-[#d4af37] transition-colors duration-200 text-center"
+                          className="hover:text-[#d4af37] transition-colors duration-200"
                         >
-                          Privacy Policy
+                          Privacy
                         </a>
                       </div>
-                      <div className="text-center text-xs text-gray-500 mt-3">
-                        © 2024 CYGJ Crypto Tools
+                      <div className="text-center text-[10px] text-gray-600 mt-1">
+                        © 2024 CYGJ Tools
                       </div>
                     </div>
                   </>
