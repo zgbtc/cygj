@@ -247,7 +247,7 @@ class LiFiBridge:
 
     def multi_chain_mixing_path(self, base_chain: str, num_hops: int) -> list:
         """
-        生成多链隐私转账路径（每 3 跳跨链一次）
+        生成多链隐私转账路径（每 10 跳跨链一次）
         
         Args:
             base_chain: 起始链（如 'bsc', 'bsc_testnet'）
@@ -257,7 +257,7 @@ class LiFiBridge:
             路径列表，每个元素为 {'chain': str, 'hop': int, 'type': 'same_chain'|'cross_chain'}
         
         规则：
-        - 每 3 跳后插入一次跨链
+        - 每 10 跳后插入一次跨链
         - 跨链到随机中间链
         - 最后一次跨链回到起始链（目标地址在起始链）
         """
@@ -274,7 +274,7 @@ class LiFiBridge:
 
         path = []
         current_chain = chain_key
-        cross_interval = 3  # 每 3 跳跨链一次
+        cross_interval = 10  # 每 10 跳跨链一次
 
         for hop_idx in range(1, num_hops + 1):
             # 判断是否需要跨链
@@ -315,7 +315,7 @@ class LiFiBridge:
 
         cross_count = sum(1 for p in path if p['type'] == 'cross_chain')
         logger.info(
-            f"🗺️ 生成多链路径: {num_hops} 跳, 每 {cross_interval} 跳跨链一次, "
+            f"🗺️ 生成多链路径: {num_hops} 跳, 每 10 跳跨链一次, "
             f"共 {cross_count} 次跨链"
         )
         return path
