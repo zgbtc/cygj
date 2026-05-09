@@ -131,7 +131,7 @@ const MIXING_MODES = {
 };
 
 // Stealth Transfer Mixer component
-function StealthTransferApp() {
+function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
   const [chain, setChain] = useState("bsc");
   const [mode, setMode] = useState("fast");
   const [privateKey, setPrivateKey] = useState("");
@@ -147,6 +147,322 @@ function StealthTransferApp() {
   const [progressPercent, setProgressPercent] = useState(0);
   const [onlineUsers, setOnlineUsers] = useState(0);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+
+  // Translation object
+  const t = {
+    en: {
+      onlineToday: "Online Today",
+      fastMode: "Fast Mode",
+      ultimatePrivacy: "Ultimate Privacy",
+      fastModeDesc: "Cross Obfuscation · Hide IP · Fast Arrival",
+      ultimatePrivacyDesc: "Multi-chain Ghost Mode · Fully Anonymous · Untraceable",
+      singleChainMixing: "Single-chain Mixing",
+      vpnRecommended: "VPN recommended for IP protection",
+      suitableSmallTransfers: "Suitable for small transfers (<0.5 BNB)",
+      suitableLargeTransfers: "Suitable for large transfers",
+      multiHopCrossChain: "Multi-hop cross-chain + multi-chain paths + 100% hide fund paths, IP untraceable, absolute privacy protection",
+      selectNetwork: "Select Network",
+      sourcePrivateKey: "Source Private Key / Mnemonic *",
+      enterPrivateKey: "Enter private key or mnemonic (12/24 words)",
+      detectedAs: "Detected as:",
+      mnemonic: "Mnemonic",
+      privateKey: "Private Key",
+      willUseFirstAddress: "(will use first address)",
+      targetAddress: "Target Address *",
+      transferAmount: "Transfer Amount (BNB) *",
+      hops: "Hops:",
+      moreIsStealthier: "(more is stealthier)",
+      est: "Est.",
+      multipleIntermediateWallets: "Multiple intermediate wallet addresses hide transfer paths for anonymous transfers and fund privacy.",
+      custom: "Custom",
+      donation: "Donation",
+      estGas: "Est. Gas",
+      crosschainFee: "Cross-chain Fee",
+      totalFee: "Total Fee",
+      expectedReceive: "Expected Receive",
+      secureTransfer: "Secure Transfer",
+      processing: "Processing",
+      faq: "FAQ",
+      faqQuestion1: "How to ensure transfers are completely untraceable?",
+      faqQuestion2: "How is fund security guaranteed? Risk of theft or loss?",
+      faqQuestion3: "What's the key difference in privacy protection between modes?",
+      faqQuestion4: "Why provide mnemonic? Is it safe?",
+      faqQuestion5: "What if transaction fails or gets stuck?",
+      // FAQ 1 content
+      faq1TechPrinciple: "Technical Principle:",
+      faq1MultiLayer: "We use multi-layer isolation architecture to completely sever fund tracing at the technical level:",
+      faq1FastModeDual: "Fast Mode - Dual-layer Isolation:",
+      faq1Layer1: "First Layer: Source → Temp Address T1 (cut source)",
+      faq1MixLayer: "Mixing Layer: T1 randomly hops through 10-100 HD wallet addresses",
+      faq1Layer2: "Second Layer: Temp Address T2 → Target (cut destination)",
+      faq1OnChain: "On-chain Trace Analysis:",
+      faq1Explorer: "Blockchain explorer only sees: A → T1 (no continuation)",
+      faq1Middle: "Middle layer: T1 → B1 → C3 → B5 → C2... (random path)",
+      faq1Final: "Final layer: T2 → Z (no predecessor)",
+      faq1Conclusion: "Conclusion: Even with Chainalysis tools, cannot link A to Z",
+      faq1Ultimate: "Ultimate Privacy - Cross-chain Break:",
+      faq1MixBefore: "Mix to new temp address before each cross-chain",
+      faq1Bridge: "Bridge records: Temp B → Temp C (different chains)",
+      faq1Unlinkable: "Unlinkable: Source A on BSC, Target Z on BSC, but via Polygon, Arbitrum",
+      faq1IP: "IP Protection: Auto proxy pool, different IP per request",
+      faq1Time: "Time Obfuscation: 5-30min random delays break timing patterns",
+      // FAQ 2 content
+      faq2Decentralized: "Decentralized Architecture Guarantee:",
+      faq2NonCustodial: "✅ Non-custodial Design",
+      faq2BIP44: "All intermediate addresses derived from your mnemonic via BIP44",
+      faq2Control: "Private keys fully controlled by you, we cannot touch your funds",
+      faq2NoPool: "No fund pool, no centralized servers",
+      faq2OnChain: "✅ On-chain Verifiable",
+      faq2Hash: "Each transaction has unique hash, queryable on blockchain explorer",
+      faq2OpenSource: "Smart contracts open source, code logic transparent and auditable",
+      faq2Immutable: "All operations executed on-chain, immutable",
+      faq2MnemonicSec: "✅ Mnemonic Security",
+      faq2Local: "Mnemonic only used locally in your browser, never uploaded",
+      faq2Hardware: "Recommend using hardware wallet generated mnemonic",
+      faq2AutoClear: "After mixing, intermediate addresses auto-cleared, no balance left",
+      faq2Recommendations: "⚠️ Security Recommendations",
+      faq2FirstTime: "First time use: test with small amount (0.01-0.05 BNB)",
+      faq2Keep: "Keep mnemonic safe, loss is unrecoverable",
+      faq2Confirm: "Confirm target address correct, on-chain transactions irreversible",
+      // FAQ 3 content
+      faq3FastMode: "Fast Mode - Single-chain Deep Obfuscation:",
+      faq3UseCase: "Use Case:",
+      faq3FastUseCase: "Daily transfers, small amounts (<0.5 BNB), need fast arrival (30s-5min)",
+      faq3TechFeatures: "Technical Features:",
+      faq3FastTech: "Dual-layer isolation + multi-hop mixing, 10-100 intermediate addresses random hops",
+      faq3PrivacyLevel: "Privacy Level:",
+      faq3FastPrivacy: "⭐⭐⭐⭐⭐ Resistant to blockchain explorers, common analysis tools",
+      faq3Ultimate: "Ultimate Privacy - Cross-chain Ghost Mode:",
+      faq3UltimateUseCase: "Large fund transfers (>0.5 BNB), need highest privacy protection",
+      faq3CrossChain: "Cross-chain break: BSC → Polygon → Arbitrum → BSC (68+ chains available)",
+      faq3NewTemp: "New temp address for each cross-chain (bridge cannot link)",
+      faq3AutoProxy: "Auto proxy pool: different IP per request, network layer untraceable",
+      faq3Delays: "5-30min random delays: break timing correlation patterns",
+      faq3UltimatePrivacy: "⭐⭐⭐⭐⭐⭐⭐ Resistant to Chainalysis, Elliptic and other pro tools",
+      faq3CoreDiff: "Core Difference:",
+      faq3CoreDiffText: "Fast Mode: Single-chain obfuscation, speed priority | Ultimate Privacy: Cross-chain break, privacy priority",
+      // FAQ 4 content
+      faq4TechNecessity: "Technical Necessity:",
+      faq4HDPrinciple: "HD Wallet Principle:",
+      faq4Requires: "Mixing requires generating 10-100 intermediate addresses",
+      faq4BIP44: "Use BIP44 standard to derive child addresses from mnemonic",
+      faq4Child: "Each child address has independent private key for signing transactions",
+      faq4WhyNot: "Why not use single private key:",
+      faq4SingleKey: "Single private key only controls one address",
+      faq4CannotGen: "Cannot generate multiple intermediate addresses for mixing",
+      faq4HDWallet: "HD wallet can derive unlimited addresses from one mnemonic",
+      faq4Security: "Security Guarantee:",
+      faq4Local: "✅ Local Processing",
+      faq4BrowserOnly: "Mnemonic only used in your browser",
+      faq4NotSent: "Not sent to server or any third party",
+      faq4LocalCalc: "All derivation calculations done locally",
+      faq4Temp: "✅ Temporary Use",
+      faq4AutoClear: "After mixing, intermediate addresses auto-cleared",
+      faq4NoBalance: "No balance left in intermediate addresses",
+      faq4Dedicated: "Recommend using dedicated mnemonic, not main wallet",
+      faq4BestPractices: "Best Practices:",
+      faq4NewMnemonic: "Use newly generated mnemonic (not main wallet)",
+      faq4Discard: "After mixing, can discard the mnemonic",
+      faq4HardwareWallet: "Or use hardware wallet generated mnemonic",
+      // FAQ 5 content
+      faq5FaultTolerance: "Fault Tolerance Mechanism:",
+      faq5AutoRetry: "✅ Auto Retry",
+      faq5Retry3: "Failed transactions auto-retry 3 times",
+      faq5GasIncrease: "Insufficient gas price auto-increased and resent",
+      faq5Congestion: "Network congestion waits then retries",
+      faq5FundProtection: "✅ Fund Protection",
+      faq5NoDeduct: "Failed transactions don't deduct funds",
+      faq5AutoCollect: "Intermediate address balances auto-collected",
+      faq5NoStuck: "No funds stuck in intermediate addresses",
+      faq5RealTime: "✅ Real-time Monitoring",
+      faq5Status: "Page shows real-time transaction status",
+      faq5Progress: "Can see current progress and remaining time",
+      faq5Hash: "Each transaction has hash, queryable on blockchain explorer",
+      faq5CommonIssues: "Common Issue Handling:",
+      faq5Case1: "Case 1: Transaction pending long time",
+      faq5Case1Cause: "Cause: Network congestion | Solution: System auto-increases gas and resends",
+      faq5Case2: "Case 2: Partial transaction failure",
+      faq5Case2Cause: "Cause: Insufficient balance | Solution: System collects completed portions",
+      faq5Case3: "Case 3: Cross-chain stuck (Ultimate Privacy)",
+      faq5Case3Cause: "Cause: Bridge congestion | Solution: Wait for cross-chain confirmation (usually 5-30min)",
+      // misc
+      processingText: "Processing...",
+      executionFailed: "❌ Execution Failed",
+      comingSoon: "🚧 Coming Soon",
+      stayTuned: "Stay tuned...",
+      fillAllFields: "Please fill all required fields",
+      startMixing: "Starting mixing...",
+      mode: "Mode:",
+      ipHidden: "IP Hidden: Enabled (Proxy Pool)",
+      ipHiddenVpn: "IP Hidden: VPN recommended",
+      detectedMnemonic: "Detected as: Mnemonic",
+      detectedPrivateKey: "Detected as: Private Key",
+      transactionFlowDetails: "Transaction Flow Details:",
+      stealthTransferComplete: "Stealth transfer complete!",
+      targetReceived: "Target received:",
+      success: "Success:",
+      failed: "Failed:",
+      error: "Error:",
+      transactionFailed: "Transaction failed:"
+    },
+    zh: {
+      onlineToday: "今日在线",
+      fastMode: "快速模式",
+      ultimatePrivacy: "极致隐私",
+      fastModeDesc: "交叉混淆 · 隐藏IP · 快速到账",
+      ultimatePrivacyDesc: "多链幽灵模式 · 完全匿名 · 无法追踪",
+      singleChainMixing: "单链混币",
+      vpnRecommended: "建议使用VPN保护IP",
+      suitableSmallTransfers: "适合小额转账（<0.5 BNB）",
+      suitableLargeTransfers: "适合大额转账",
+      multiHopCrossChain: "多跳跨链 + 多链路径 + 100%隐藏资金路径，IP无法追踪，绝对隐私保护",
+      selectNetwork: "选择网络",
+      sourcePrivateKey: "源地址私钥 / 助记词 *",
+      enterPrivateKey: "输入私钥或助记词（12/24个单词）",
+      detectedAs: "识别为：",
+      mnemonic: "助记词",
+      privateKey: "私钥",
+      willUseFirstAddress: "（将使用第一个地址）",
+      targetAddress: "目标地址 *",
+      transferAmount: "转账金额 (BNB) *",
+      hops: "跳数：",
+      moreIsStealthier: "（越多越隐蔽）",
+      est: "预计",
+      multipleIntermediateWallets: "多个中间钱包地址隐藏转账路径，实现匿名转账和资金隐私。",
+      custom: "自定义",
+      donation: "捐赠",
+      estGas: "预估 Gas",
+      crosschainFee: "跨链费用",
+      totalFee: "总费用",
+      expectedReceive: "预计收到",
+      secureTransfer: "安全转账",
+      processing: "处理中",
+      faq: "常见问题",
+      faqQuestion1: "如何确保转账完全无法追踪？",
+      faqQuestion2: "资金安全如何保障？有被盗或丢失的风险吗？",
+      faqQuestion3: "两种模式在隐私保护上的核心区别是什么？",
+      faqQuestion4: "为什么要提供助记词？安全吗？",
+      faqQuestion5: "交易失败或卡住了怎么办？",
+      // FAQ 1 content
+      faq1TechPrinciple: "技术原理：",
+      faq1MultiLayer: "我们使用多层隔离架构，在技术层面彻底切断资金追踪：",
+      faq1FastModeDual: "快速模式 - 双层隔离：",
+      faq1Layer1: "第一层：源地址 → 临时地址T1（切断来源）",
+      faq1MixLayer: "混币层：T1随机跳转10-100个HD钱包地址",
+      faq1Layer2: "第二层：临时地址T2 → 目标地址（切断去向）",
+      faq1OnChain: "链上追踪分析：",
+      faq1Explorer: "区块链浏览器只能看到：A → T1（无后续）",
+      faq1Middle: "中间层：T1 → B1 → C3 → B5 → C2...（随机路径）",
+      faq1Final: "最终层：T2 → Z（无前驱）",
+      faq1Conclusion: "结论：即使使用Chainalysis工具，也无法将A与Z关联",
+      faq1Ultimate: "极致隐私 - 跨链断点：",
+      faq1MixBefore: "每次跨链前混币到新临时地址",
+      faq1Bridge: "桥接记录：临时B → 临时C（不同链）",
+      faq1Unlinkable: "无法关联：BSC上的源地址A，BSC上的目标Z，但经过Polygon、Arbitrum",
+      faq1IP: "IP保护：自动代理池，每次请求使用不同IP",
+      faq1Time: "时间混淆：5-30分钟随机延迟，打破时序关联模式",
+      // FAQ 2 content
+      faq2Decentralized: "去中心化架构保障：",
+      faq2NonCustodial: "✅ 非托管设计",
+      faq2BIP44: "所有中间地址通过BIP44从您的助记词派生",
+      faq2Control: "私钥完全由您控制，我们无法触碰您的资金",
+      faq2NoPool: "无资金池，无中心化服务器",
+      faq2OnChain: "✅ 链上可验证",
+      faq2Hash: "每笔交易有唯一哈希，可在区块链浏览器查询",
+      faq2OpenSource: "智能合约开源，代码逻辑透明可审计",
+      faq2Immutable: "所有操作在链上执行，不可篡改",
+      faq2MnemonicSec: "✅ 助记词安全",
+      faq2Local: "助记词仅在您的浏览器本地使用，从不上传",
+      faq2Hardware: "建议使用硬件钱包生成的助记词",
+      faq2AutoClear: "混币完成后，中间地址自动清空，无余额残留",
+      faq2Recommendations: "⚠️ 安全建议",
+      faq2FirstTime: "首次使用：用小额测试（0.01-0.05 BNB）",
+      faq2Keep: "妥善保管助记词，丢失不可恢复",
+      faq2Confirm: "确认目标地址正确，链上交易不可逆",
+      // FAQ 3 content
+      faq3FastMode: "快速模式 - 单链深度混淆：",
+      faq3UseCase: "适用场景：",
+      faq3FastUseCase: "日常转账、小额（<0.5 BNB）、需要快速到账（30秒-5分钟）",
+      faq3TechFeatures: "技术特点：",
+      faq3FastTech: "双层隔离 + 多跳混币，10-100个中间地址随机跳转",
+      faq3PrivacyLevel: "隐私等级：",
+      faq3FastPrivacy: "⭐⭐⭐⭐⭐ 可抵御区块链浏览器、常见分析工具",
+      faq3Ultimate: "极致隐私 - 跨链幽灵模式：",
+      faq3UltimateUseCase: "大额资金转移（>0.5 BNB）、需要最高隐私保护",
+      faq3CrossChain: "跨链断点：BSC → Polygon → Arbitrum → BSC（支持68+条链）",
+      faq3NewTemp: "每次跨链使用新临时地址（桥接无法关联）",
+      faq3AutoProxy: "自动代理池：每次请求不同IP，网络层无法追踪",
+      faq3Delays: "5-30分钟随机延迟：打破时序关联模式",
+      faq3UltimatePrivacy: "⭐⭐⭐⭐⭐⭐⭐ 可抵御Chainalysis、Elliptic等专业工具",
+      faq3CoreDiff: "核心区别：",
+      faq3CoreDiffText: "快速模式：单链混淆，速度优先 | 极致隐私：跨链断点，隐私优先",
+      // FAQ 4 content
+      faq4TechNecessity: "技术必要性：",
+      faq4HDPrinciple: "HD钱包原理：",
+      faq4Requires: "混币需要生成10-100个中间地址",
+      faq4BIP44: "使用BIP44标准从助记词派生子地址",
+      faq4Child: "每个子地址有独立私钥用于签名交易",
+      faq4WhyNot: "为什么不用单个私钥：",
+      faq4SingleKey: "单个私钥只控制一个地址",
+      faq4CannotGen: "无法生成多个中间地址进行混币",
+      faq4HDWallet: "HD钱包可从一个助记词派生无限地址",
+      faq4Security: "安全保障：",
+      faq4Local: "✅ 本地处理",
+      faq4BrowserOnly: "助记词仅在您的浏览器中使用",
+      faq4NotSent: "不发送到服务器或任何第三方",
+      faq4LocalCalc: "所有派生计算在本地完成",
+      faq4Temp: "✅ 临时使用",
+      faq4AutoClear: "混币完成后，中间地址自动清空",
+      faq4NoBalance: "中间地址无余额残留",
+      faq4Dedicated: "建议使用专用助记词，不要用主钱包",
+      faq4BestPractices: "最佳实践：",
+      faq4NewMnemonic: "使用新生成的助记词（不要用主钱包）",
+      faq4Discard: "混币完成后，可以丢弃该助记词",
+      faq4HardwareWallet: "或使用硬件钱包生成的助记词",
+      // FAQ 5 content
+      faq5FaultTolerance: "容错机制：",
+      faq5AutoRetry: "✅ 自动重试",
+      faq5Retry3: "失败交易自动重试3次",
+      faq5GasIncrease: "Gas不足时自动提高并重发",
+      faq5Congestion: "网络拥堵时等待后重试",
+      faq5FundProtection: "✅ 资金保护",
+      faq5NoDeduct: "失败交易不扣除资金",
+      faq5AutoCollect: "中间地址余额自动归集",
+      faq5NoStuck: "资金不会卡在中间地址",
+      faq5RealTime: "✅ 实时监控",
+      faq5Status: "页面实时显示交易状态",
+      faq5Progress: "可查看当前进度和剩余时间",
+      faq5Hash: "每笔交易有哈希，可在区块链浏览器查询",
+      faq5CommonIssues: "常见问题处理：",
+      faq5Case1: "情况1：交易长时间pending",
+      faq5Case1Cause: "原因：网络拥堵 | 解决：系统自动提高Gas重发",
+      faq5Case2: "情况2：部分交易失败",
+      faq5Case2Cause: "原因：余额不足 | 解决：系统归集已完成部分",
+      faq5Case3: "情况3：跨链卡住（极致隐私模式）",
+      faq5Case3Cause: "原因：桥接拥堵 | 解决：等待跨链确认（通常5-30分钟）",
+      // misc
+      processingText: "处理中...",
+      executionFailed: "❌ 执行失败",
+      comingSoon: "🚧 即将上线",
+      stayTuned: "敬请期待...",
+      fillAllFields: "请填写所有必填字段",
+      startMixing: "开始混币...",
+      mode: "模式：",
+      ipHidden: "IP隐藏：已启用（代理池）",
+      ipHiddenVpn: "IP隐藏：建议使用VPN",
+      detectedMnemonic: "已识别为：助记词",
+      detectedPrivateKey: "已识别为：私钥",
+      transactionFlowDetails: "交易流程详情：",
+      stealthTransferComplete: "隐匿转账完成！",
+      targetReceived: "目标地址收到：",
+      success: "成功：",
+      failed: "失败：",
+      error: "错误：",
+      transactionFailed: "交易失败："
+    }
+  };
+
+  const text = t[lang];
 
   // 初始化在线人数（基于当前时间生成一个稳定的基数）
   useEffect(() => {
@@ -204,7 +520,7 @@ function StealthTransferApp() {
 
   const handleExecute = async () => {
     if (!privateKey || !toAddress || !amount) {
-      alert("请填写所有必填字段");
+      alert(text.fillAllFields);
       return;
     }
 
@@ -214,20 +530,20 @@ function StealthTransferApp() {
     setProgressPercent(0);
 
     try {
-      setProgress(prev => [...prev, "开始混币..."]);
+      setProgress(prev => [...prev, text.startMixing]);
       setProgressPercent(5);
-      setProgress(prev => [...prev, `模式: ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
+      setProgress(prev => [...prev, `${text.mode} ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
       setProgressPercent(10);
       
       // 根据模式显示IP隐藏状态
       if (mode === 'ultimate') {
-        setProgress(prev => [...prev, "🔒 IP隐藏: 已启用（代理池）"]);
+        setProgress(prev => [...prev, `🔒 ${text.ipHidden}`]);
       } else {
-        setProgress(prev => [...prev, "⚠️ IP隐藏: 建议使用VPN"]);
+        setProgress(prev => [...prev, `⚠️ ${text.ipHiddenVpn}`]);
       }
       setProgressPercent(15);
       
-      setProgress(prev => [...prev, `跳数: ${numHops}`]);
+      setProgress(prev => [...prev, `${text.hops} ${numHops}`]);
       setProgressPercent(20);
       
       // 智能识别输入类型
@@ -249,10 +565,10 @@ function StealthTransferApp() {
       // 根据输入类型添加对应字段
       if (inputType === 'mnemonic') {
         requestBody.from_mnemonic = inputValue;
-        setProgress(prev => [...prev, "✅ 已识别为：助记词"]);
+        setProgress(prev => [...prev, `✅ ${text.detectedMnemonic}`]);
       } else {
         requestBody.from_private_key = inputValue;
-        setProgress(prev => [...prev, "✅ 已识别为：私钥"]);
+        setProgress(prev => [...prev, `✅ ${text.detectedPrivateKey}`]);
       }
       
       const response = await fetch(`${API_URL}/api/mixer`, {
@@ -266,7 +582,7 @@ function StealthTransferApp() {
       setProgressPercent(40);
       
       if (data.success && data.results) {
-        setProgress(prev => [...prev, "\nTransaction Flow Details:"]);
+        setProgress(prev => [...prev, `\n${text.transactionFlowDetails}`]);
         setProgressPercent(50);
         
         // Display address flow for each transaction
@@ -285,21 +601,21 @@ function StealthTransferApp() {
             ]);
           } else if (tx.status === 'failed') {
             setProgress(prev => [...prev, 
-              `❌ [${index + 1}/${data.results.length}] Transaction failed: ${tx.error || 'Unknown error'}`
+              `❌ [${index + 1}/${data.results.length}] ${text.transactionFailed} ${tx.error || 'Unknown error'}`
             ]);
           }
         });
         
         setProgressPercent(95);
-        setProgress(prev => [...prev, `\n🎉 Stealth transfer complete!`]);
-        setProgress(prev => [...prev, `Target received: ${data.total_collected} BNB`]);
-        setProgress(prev => [...prev, `Success: ${data.success_count} | Failed: ${data.failed_count}`]);
+        setProgress(prev => [...prev, `\n🎉 ${text.stealthTransferComplete}`]);
+        setProgress(prev => [...prev, `${text.targetReceived} ${data.total_collected} BNB`]);
+        setProgress(prev => [...prev, `${text.success} ${data.success_count} | ${text.failed} ${data.failed_count}`]);
         setProgressPercent(100);
       }
       
       setResult(data);
     } catch (error) {
-      setProgress(prev => [...prev, `❌ Error: ${error}`]);
+      setProgress(prev => [...prev, `❌ ${text.error} ${error}`]);
       setResult({ success: false, error: String(error) });
       setProgressPercent(0);
     } finally {
@@ -313,7 +629,7 @@ function StealthTransferApp() {
       <div className="mb-4 flex items-center justify-between bg-[#0a0a0a] border border-[#10b981]/30 rounded-lg px-4 py-2">
         <div className="flex items-center space-x-2">
           <div className="w-2 h-2 bg-[#10b981] rounded-full animate-pulse shadow-lg shadow-[#10b981]/50"></div>
-          <span className="text-sm text-gray-400">Online Today</span>
+          <span className="text-sm text-gray-400">{text.onlineToday}</span>
         </div>
         <span className="text-lg font-bold text-[#10b981]">{onlineUsers}</span>
       </div>
@@ -336,9 +652,9 @@ function StealthTransferApp() {
             }`}></div>
             
             <div className="relative z-10">
-              <div className={`font-bold text-base mb-2 ${mode === 'fast' ? 'text-[#d4af37]' : 'text-white'}`}>Fast Mode</div>
+              <div className={`font-bold text-base mb-2 ${mode === 'fast' ? 'text-[#d4af37]' : 'text-white'}`}>{text.fastMode}</div>
               <div className={`text-xs leading-relaxed ${mode === 'fast' ? 'text-[#d4af37]/80' : 'text-gray-400'}`}>
-                Cross Obfuscation · Hide IP · Fast Arrival
+                {text.fastModeDesc}
               </div>
             </div>
           </button>
@@ -358,9 +674,9 @@ function StealthTransferApp() {
             }`}></div>
             
             <div className="relative z-10">
-              <div className={`font-bold text-base mb-2 ${mode === 'ultimate' ? 'text-[#d4af37]' : 'text-white'}`}>Ultimate Privacy</div>
+              <div className={`font-bold text-base mb-2 ${mode === 'ultimate' ? 'text-[#d4af37]' : 'text-white'}`}>{text.ultimatePrivacy}</div>
               <div className={`text-xs leading-relaxed ${mode === 'ultimate' ? 'text-[#d4af37]/80' : 'text-gray-400'}`}>
-                Multi-chain Ghost Mode · Fully Anonymous · Untraceable
+                {text.ultimatePrivacyDesc}
               </div>
             </div>
           </button>
@@ -370,7 +686,7 @@ function StealthTransferApp() {
         {mode === 'fast' && (
           <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#d4af37]/30 rounded-lg shadow-lg shadow-[#d4af37]/10">
             <p className="text-sm text-gray-300 leading-relaxed">
-              <span className="font-semibold text-[#d4af37]">Single-chain Mixing</span> · VPN recommended for IP protection · Suitable for small transfers (&lt;0.5 BNB)
+              <span className="font-semibold text-[#d4af37]">{text.singleChainMixing}</span> · {text.vpnRecommended} · {text.suitableSmallTransfers}
             </p>
           </div>
         )}
@@ -378,7 +694,7 @@ function StealthTransferApp() {
         {mode === 'ultimate' && (
           <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#d4af37]/30 rounded-lg shadow-lg shadow-[#d4af37]/10">
             <p className="text-sm text-gray-300 leading-relaxed">
-              <span className="font-semibold text-[#d4af37]">Suitable for large transfers</span>, Multi-hop cross-chain + multi-chain paths + 100% hide fund paths, IP untraceable, absolute privacy protection
+              <span className="font-semibold text-[#d4af37]">{text.suitableLargeTransfers}</span>, {text.multiHopCrossChain}
             </p>
           </div>
         )}
@@ -387,7 +703,7 @@ function StealthTransferApp() {
       {/* Chain Selection */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          Select Network
+          {text.selectNetwork}
         </label>
         <select
           value={chain}
@@ -402,20 +718,20 @@ function StealthTransferApp() {
       {/* Private Key / Mnemonic Input */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          Source Private Key / Mnemonic *
+          {text.sourcePrivateKey}
         </label>
         <textarea
           value={privateKey}
           onChange={(e) => handleInputChange(e.target.value)}
-          placeholder="Enter private key or mnemonic (12/24 words)"
+          placeholder={text.enterPrivateKey}
           rows={3}
           className="w-full px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm resize-none"
         />
         {detectedInputType && (
           <p className="text-xs text-[#d4af37] mt-1 flex items-center">
             <span className="mr-1">ℹ️</span>
-            Detected as: {detectedInputType === 'mnemonic' ? 'Mnemonic' : 'Private Key'}
-            {detectedInputType === 'mnemonic' && ' (will use first address)'}
+            {text.detectedAs} {detectedInputType === 'mnemonic' ? text.mnemonic : text.privateKey}
+            {detectedInputType === 'mnemonic' && ` ${text.willUseFirstAddress}`}
           </p>
         )}
       </div>
@@ -423,7 +739,7 @@ function StealthTransferApp() {
       {/* Target Address */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          Target Address *
+          {text.targetAddress}
         </label>
         <input
           type="text"
@@ -437,7 +753,7 @@ function StealthTransferApp() {
       {/* Amount */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          Transfer Amount (BNB) *
+          {text.transferAmount}
         </label>
         <input
           type="number"
@@ -452,12 +768,12 @@ function StealthTransferApp() {
       {/* Number of Hops */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          Hops: <span className="text-[#d4af37]">{numHops}</span> <span className="text-xs text-gray-400">(more is stealthier)</span>
+          {text.hops} <span className="text-[#d4af37]">{numHops}</span> <span className="text-xs text-gray-400">{text.moreIsStealthier}</span>
           <span className="ml-2 text-xs text-[#d4af37]">
-            Est. {numHops <= 10 ? '~30s' : numHops <= 50 ? '~2.5min' : numHops <= 100 ? '~5min' : '~20min'}
+            {text.est} {numHops <= 10 ? '~30s' : numHops <= 50 ? '~2.5min' : numHops <= 100 ? '~5min' : '~20min'}
           </span>
         </label>
-        <p className="text-xs text-gray-400 mb-2">Multiple intermediate wallet addresses hide transfer paths for anonymous transfers and fund privacy.</p>
+        <p className="text-xs text-gray-400 mb-2">{text.multipleIntermediateWallets}</p>
         <div className="flex gap-2">
           {[10, 50, 100, 500, 1000].map((num) => (
             <button
@@ -490,7 +806,7 @@ function StealthTransferApp() {
               }
             }}
             className="flex-1 px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm"
-            placeholder="Custom"
+            placeholder={text.custom}
           />
         </div>
       </div>
@@ -498,7 +814,7 @@ function StealthTransferApp() {
       <div className="bg-[#0a0a0a] border border-[#d4af37]/30 p-4 rounded-lg mb-4 shadow-lg shadow-[#d4af37]/10">
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-gray-400 text-xs">Donation</p>
+            <p className="text-gray-400 text-xs">{text.donation}</p>
             <p className="font-semibold text-[#d4af37]">
               {mode === 'ultimate' && amount
                 ? (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100).toFixed(4)
@@ -506,19 +822,19 @@ function StealthTransferApp() {
             </p>
           </div>
           <div>
-            <p className="text-gray-400 text-xs">Est. Gas</p>
+            <p className="text-gray-400 text-xs">{text.estGas}</p>
             <p className="font-semibold text-[#d4af37]">~{(numHops * 0.00021).toFixed(5)} BNB</p>
           </div>
           {mode === 'ultimate' && (
             <div>
-              <p className="text-gray-400 text-xs">Cross-chain Fee</p>
+              <p className="text-gray-400 text-xs">{text.crosschainFee}</p>
               <p className="font-semibold text-[#ffa500]">
                 ~{MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0} BNB
               </p>
             </div>
           )}
           <div>
-            <p className="text-gray-400 text-xs">Total Fee</p>
+            <p className="text-gray-400 text-xs">{text.totalFee}</p>
             <p className="font-semibold text-[#d4af37]">
               ~{mode === 'ultimate' && amount
                 ? ((parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100) + 
@@ -530,7 +846,7 @@ function StealthTransferApp() {
             </p>
           </div>
           <div>
-            <p className="text-gray-400 text-xs">Expected Receive</p>
+            <p className="text-gray-400 text-xs">{text.expectedReceive}</p>
             <p className="font-semibold text-[#10b981]">
               {amount ? (
                 mode === 'ultimate'
@@ -567,7 +883,7 @@ function StealthTransferApp() {
           <div className="relative z-10">
             <div className="flex items-center justify-center mb-2">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black mr-2"></div>
-              <span>Processing {progressPercent}%</span>
+              <span>{text.processing} {progressPercent}%</span>
             </div>
             {/* Progress Bar */}
             <div className="absolute bottom-0 left-0 right-0 h-2 bg-black/30 rounded-b-lg overflow-hidden">
@@ -578,13 +894,13 @@ function StealthTransferApp() {
             </div>
           </div>
         ) : (
-          <span className="relative z-10">Secure Transfer</span>
+          <span className="relative z-10">{text.secureTransfer}</span>
         )}
       </button>
 
       {/* FAQ Section */}
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-[#d4af37] mb-3 border-b border-[#d4af37]/30 pb-2">FAQ</h3>
+        <h3 className="text-sm font-semibold text-[#d4af37] mb-3 border-b border-[#d4af37]/30 pb-2">{text.faq}</h3>
         <div className="space-y-2">
           {/* FAQ 1 */}
           <div className="border border-[#d4af37]/20 rounded-lg overflow-hidden bg-[#0a0a0a]">
@@ -592,7 +908,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 1 ? null : 1)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">How to ensure transfers are completely untraceable?</span>
+              <span className="text-sm font-medium text-white">{text.faqQuestion1}</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 1 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -604,31 +920,28 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 1 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">Technical Principle:</p>
-                <p className="mb-3">We use <strong>multi-layer isolation architecture</strong> to completely sever fund tracing at the technical level:</p>
-                
-                <p className="font-semibold mb-1">Fast Mode - Dual-layer Isolation:</p>
+                <p className="font-semibold mb-2">{text.faq1TechPrinciple}</p>
+                <p className="mb-3">{text.faq1MultiLayer}</p>
+                <p className="font-semibold mb-1">{text.faq1FastModeDual}</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li><strong>First Layer</strong>: Source → Temp Address T1 (cut source)</li>
-                  <li><strong>Mixing Layer</strong>: T1 randomly hops through 10-100 HD wallet addresses</li>
-                  <li><strong>Second Layer</strong>: Temp Address T2 → Target (cut destination)</li>
+                  <li><strong>{text.faq1Layer1}</strong></li>
+                  <li>{text.faq1MixLayer}</li>
+                  <li><strong>{text.faq1Layer2}</strong></li>
                 </ul>
-                
-                <p className="font-semibold mb-1">On-chain Trace Analysis:</p>
+                <p className="font-semibold mb-1">{text.faq1OnChain}</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>Blockchain explorer only sees: A → T1 (no continuation)</li>
-                  <li>Middle layer: T1 → B1 → C3 → B5 → C2... (random path)</li>
-                  <li>Final layer: T2 → Z (no predecessor)</li>
-                  <li><strong>Conclusion</strong>: Even with Chainalysis tools, cannot link A to Z</li>
+                  <li>{text.faq1Explorer}</li>
+                  <li>{text.faq1Middle}</li>
+                  <li>{text.faq1Final}</li>
+                  <li><strong>{text.faq1Conclusion}</strong></li>
                 </ul>
-                
-                <p className="font-semibold mb-1">Ultimate Privacy - Cross-chain Break:</p>
+                <p className="font-semibold mb-1">{text.faq1Ultimate}</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>Mix to <strong>new temp address</strong> before each cross-chain</li>
-                  <li>Bridge records: Temp B → Temp C (different chains)</li>
-                  <li>Unlinkable: Source A on BSC, Target Z on BSC, but via Polygon, Arbitrum</li>
-                  <li><strong>IP Protection</strong>: Auto proxy pool, different IP per request</li>
-                  <li><strong>Time Obfuscation</strong>: 5-30min random delays break timing patterns</li>
+                  <li>{text.faq1MixBefore}</li>
+                  <li>{text.faq1Bridge}</li>
+                  <li>{text.faq1Unlinkable}</li>
+                  <li><strong>{text.faq1IP}</strong></li>
+                  <li><strong>{text.faq1Time}</strong></li>
                 </ul>
               </div>
             )}
@@ -640,7 +953,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 2 ? null : 2)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">How is fund security guaranteed? Risk of theft or loss?</span>
+              <span className="text-sm font-medium text-white">{text.faqQuestion2}</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 2 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -652,34 +965,30 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 2 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">Decentralized Architecture Guarantee:</p>
-                
-                <p className="font-semibold text-green-700 mb-1">✅ Non-custodial Design</p>
+                <p className="font-semibold mb-2">{text.faq2Decentralized}</p>
+                <p className="font-semibold text-green-400 mb-1">{text.faq2NonCustodial}</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>All intermediate addresses derived from your mnemonic via BIP44</li>
-                  <li>Private keys fully controlled by you, we cannot touch your funds</li>
-                  <li>No fund pool, no centralized servers</li>
+                  <li>{text.faq2BIP44}</li>
+                  <li>{text.faq2Control}</li>
+                  <li>{text.faq2NoPool}</li>
                 </ul>
-                
-                <p className="font-semibold text-green-700 mb-1">✅ On-chain Verifiable</p>
+                <p className="font-semibold text-green-400 mb-1">{text.faq2OnChain}</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>Each transaction has unique hash, queryable on blockchain explorer</li>
-                  <li>Smart contracts open source, code logic transparent and auditable</li>
-                  <li>All operations executed on-chain, immutable</li>
+                  <li>{text.faq2Hash}</li>
+                  <li>{text.faq2OpenSource}</li>
+                  <li>{text.faq2Immutable}</li>
                 </ul>
-                
-                <p className="font-semibold text-green-700 mb-1">✅ Mnemonic Security</p>
+                <p className="font-semibold text-green-400 mb-1">{text.faq2MnemonicSec}</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>Mnemonic only used locally in your browser, never uploaded</li>
-                  <li>Recommend using hardware wallet generated mnemonic</li>
-                  <li>After mixing, intermediate addresses auto-cleared, no balance left</li>
+                  <li>{text.faq2Local}</li>
+                  <li>{text.faq2Hardware}</li>
+                  <li>{text.faq2AutoClear}</li>
                 </ul>
-                
-                <p className="font-semibold text-orange-700 mb-1">⚠️ Security Recommendations</p>
+                <p className="font-semibold text-orange-400 mb-1">{text.faq2Recommendations}</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>First time use: test with small amount (0.01-0.05 BNB)</li>
-                  <li>Keep mnemonic safe, loss is unrecoverable</li>
-                  <li>Confirm target address correct, on-chain transactions irreversible</li>
+                  <li>{text.faq2FirstTime}</li>
+                  <li>{text.faq2Keep}</li>
+                  <li>{text.faq2Confirm}</li>
                 </ul>
               </div>
             )}
@@ -691,7 +1000,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 3 ? null : 3)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">What's the key difference in privacy protection between modes?</span>
+              <span className="text-sm font-medium text-white">{text.faqQuestion3}</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 3 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -703,24 +1012,22 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 3 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">Fast Mode - Single-chain Deep Obfuscation:</p>
-                <p className="mb-1"><strong>Use Case:</strong> Daily transfers, small amounts (&lt;0.5 BNB), need fast arrival (30s-5min)</p>
-                <p className="mb-1"><strong>Technical Features:</strong> Dual-layer isolation + multi-hop mixing, 10-100 intermediate addresses random hops</p>
-                <p className="mb-3"><strong>Privacy Level:</strong> ⭐⭐⭐⭐⭐ Resistant to blockchain explorers, common analysis tools</p>
-                
-                <p className="font-semibold mb-2">Ultimate Privacy - Cross-chain Ghost Mode:</p>
-                <p className="mb-1"><strong>Use Case:</strong> Large fund transfers (&gt;0.5 BNB), need highest privacy protection</p>
-                <p className="mb-1"><strong>Technical Features:</strong></p>
+                <p className="font-semibold mb-2">{text.faq3FastMode}</p>
+                <p className="mb-1"><strong>{text.faq3UseCase}</strong> {text.faq3FastUseCase}</p>
+                <p className="mb-1"><strong>{text.faq3TechFeatures}</strong> {text.faq3FastTech}</p>
+                <p className="mb-3"><strong>{text.faq3PrivacyLevel}</strong> {text.faq3FastPrivacy}</p>
+                <p className="font-semibold mb-2">{text.faq3Ultimate}</p>
+                <p className="mb-1"><strong>{text.faq3UseCase}</strong> {text.faq3UltimateUseCase}</p>
+                <p className="mb-1"><strong>{text.faq3TechFeatures}</strong></p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>Cross-chain break: BSC → Polygon → Arbitrum → BSC (68+ chains available)</li>
-                  <li>New temp address for each cross-chain (bridge cannot link)</li>
-                  <li>Auto proxy pool: different IP per request, network layer untraceable</li>
-                  <li>5-30min random delays: break timing correlation patterns</li>
+                  <li>{text.faq3CrossChain}</li>
+                  <li>{text.faq3NewTemp}</li>
+                  <li>{text.faq3AutoProxy}</li>
+                  <li>{text.faq3Delays}</li>
                 </ul>
-                <p className="mb-2"><strong>Privacy Level:</strong> ⭐⭐⭐⭐⭐⭐⭐ Resistant to Chainalysis, Elliptic and other pro tools</p>
-                
-                <p className="font-semibold">Core Difference:</p>
-                <p>Fast Mode: Single-chain obfuscation, speed priority | Ultimate Privacy: Cross-chain break, privacy priority</p>
+                <p className="mb-2"><strong>{text.faq3PrivacyLevel}</strong> {text.faq3UltimatePrivacy}</p>
+                <p className="font-semibold">{text.faq3CoreDiff}</p>
+                <p>{text.faq3CoreDiffText}</p>
               </div>
             )}
           </div>
@@ -731,7 +1038,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 4 ? null : 4)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">Why provide mnemonic? Is it safe?</span>
+              <span className="text-sm font-medium text-white">{text.faqQuestion4}</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 4 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -743,41 +1050,37 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 4 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">Technical Necessity:</p>
-                <p className="mb-1"><strong>HD Wallet Principle:</strong></p>
+                <p className="font-semibold mb-2">{text.faq4TechNecessity}</p>
+                <p className="mb-1"><strong>{text.faq4HDPrinciple}</strong></p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>Mixing requires generating 10-100 intermediate addresses</li>
-                  <li>Use BIP44 standard to derive child addresses from mnemonic</li>
-                  <li>Each child address has independent private key for signing transactions</li>
+                  <li>{text.faq4Requires}</li>
+                  <li>{text.faq4BIP44}</li>
+                  <li>{text.faq4Child}</li>
                 </ul>
-                
-                <p className="mb-1"><strong>Why not use single private key:</strong></p>
+                <p className="mb-1"><strong>{text.faq4WhyNot}</strong></p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>Single private key only controls one address</li>
-                  <li>Cannot generate multiple intermediate addresses for mixing</li>
-                  <li>HD wallet can derive unlimited addresses from one mnemonic</li>
+                  <li>{text.faq4SingleKey}</li>
+                  <li>{text.faq4CannotGen}</li>
+                  <li>{text.faq4HDWallet}</li>
                 </ul>
-                
-                <p className="font-semibold mb-2">Security Guarantee:</p>
-                <p className="font-semibold text-green-700 mb-1">✅ Local Processing</p>
+                <p className="font-semibold mb-2">{text.faq4Security}</p>
+                <p className="font-semibold text-green-400 mb-1">{text.faq4Local}</p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>Mnemonic only used in your browser</li>
-                  <li>Not sent to server or any third party</li>
-                  <li>All derivation calculations done locally</li>
+                  <li>{text.faq4BrowserOnly}</li>
+                  <li>{text.faq4NotSent}</li>
+                  <li>{text.faq4LocalCalc}</li>
                 </ul>
-                
-                <p className="font-semibold text-green-700 mb-1">✅ Temporary Use</p>
+                <p className="font-semibold text-green-400 mb-1">{text.faq4Temp}</p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>After mixing, intermediate addresses auto-cleared</li>
-                  <li>No balance left in intermediate addresses</li>
-                  <li>Recommend using dedicated mnemonic, not main wallet</li>
+                  <li>{text.faq4AutoClear}</li>
+                  <li>{text.faq4NoBalance}</li>
+                  <li>{text.faq4Dedicated}</li>
                 </ul>
-                
-                <p className="font-semibold mb-1">Best Practices:</p>
+                <p className="font-semibold mb-1">{text.faq4BestPractices}</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>Use newly generated mnemonic (not main wallet)</li>
-                  <li>After mixing, can discard the mnemonic</li>
-                  <li>Or use hardware wallet generated mnemonic</li>
+                  <li>{text.faq4NewMnemonic}</li>
+                  <li>{text.faq4Discard}</li>
+                  <li>{text.faq4HardwareWallet}</li>
                 </ul>
               </div>
             )}
@@ -789,7 +1092,7 @@ function StealthTransferApp() {
               onClick={() => setExpandedFaq(expandedFaq === 5 ? null : 5)}
               className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-[#1a1a1a] transition border-l-2 border-l-[#d4af37]/50"
             >
-              <span className="text-sm font-medium text-white">What if transaction fails or gets stuck?</span>
+              <span className="text-sm font-medium text-white">{text.faqQuestion5}</span>
               <svg
                 className={`w-5 h-5 text-[#d4af37] transition-transform ${expandedFaq === 5 ? 'rotate-180' : ''}`}
                 fill="none"
@@ -801,38 +1104,32 @@ function StealthTransferApp() {
             </button>
             {expandedFaq === 5 && (
               <div className="px-4 py-3 bg-[#1a1a1a] text-xs text-gray-300 leading-relaxed border-t border-[#d4af37]/20">
-                <p className="font-semibold mb-2">Fault Tolerance Mechanism:</p>
-                
-                <p className="font-semibold text-green-700 mb-1">✅ Auto Retry</p>
+                <p className="font-semibold mb-2">{text.faq5FaultTolerance}</p>
+                <p className="font-semibold text-green-400 mb-1">{text.faq5AutoRetry}</p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>Failed transactions auto-retry 3 times</li>
-                  <li>Insufficient gas price auto-increased and resent</li>
-                  <li>Network congestion waits then retries</li>
+                  <li>{text.faq5Retry3}</li>
+                  <li>{text.faq5GasIncrease}</li>
+                  <li>{text.faq5Congestion}</li>
                 </ul>
-                
-                <p className="font-semibold text-green-700 mb-1">✅ Fund Protection</p>
+                <p className="font-semibold text-green-400 mb-1">{text.faq5FundProtection}</p>
                 <ul className="list-disc list-inside mb-2 space-y-1 ml-2">
-                  <li>Failed transactions don't deduct funds</li>
-                  <li>Intermediate address balances auto-collected</li>
-                  <li>No funds stuck in intermediate addresses</li>
+                  <li>{text.faq5NoDeduct}</li>
+                  <li>{text.faq5AutoCollect}</li>
+                  <li>{text.faq5NoStuck}</li>
                 </ul>
-                
-                <p className="font-semibold text-green-700 mb-1">✅ Real-time Monitoring</p>
+                <p className="font-semibold text-green-400 mb-1">{text.faq5RealTime}</p>
                 <ul className="list-disc list-inside mb-3 space-y-1 ml-2">
-                  <li>Page shows real-time transaction status</li>
-                  <li>Can see current progress and remaining time</li>
-                  <li>Each transaction has hash, queryable on blockchain explorer</li>
+                  <li>{text.faq5Status}</li>
+                  <li>{text.faq5Progress}</li>
+                  <li>{text.faq5Hash}</li>
                 </ul>
-                
-                <p className="font-semibold mb-2">Common Issue Handling:</p>
-                <p className="mb-1"><strong>Case 1: Transaction pending long time</strong></p>
-                <p className="mb-2 ml-2">Cause: Network congestion | Solution: System auto-increases gas and resends</p>
-                
-                <p className="mb-1"><strong>Case 2: Partial transaction failure</strong></p>
-                <p className="mb-2 ml-2">Cause: Insufficient balance | Solution: System collects completed portions</p>
-                
-                <p className="mb-1"><strong>Case 3: Cross-chain stuck (Ultimate Privacy)</strong></p>
-                <p className="ml-2">Cause: Bridge congestion | Solution: Wait for cross-chain confirmation (usually 5-30min)</p>
+                <p className="font-semibold mb-2">{text.faq5CommonIssues}</p>
+                <p className="mb-1"><strong>{text.faq5Case1}</strong></p>
+                <p className="mb-2 ml-2">{text.faq5Case1Cause}</p>
+                <p className="mb-1"><strong>{text.faq5Case2}</strong></p>
+                <p className="mb-2 ml-2">{text.faq5Case2Cause}</p>
+                <p className="mb-1"><strong>{text.faq5Case3}</strong></p>
+                <p className="ml-2">{text.faq5Case3Cause}</p>
               </div>
             )}
           </div>
@@ -850,7 +1147,7 @@ function StealthTransferApp() {
           {isLoading && (
             <div className="mt-2 flex items-center text-xs">
               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#d4af37] mr-2"></div>
-              <span>Processing...</span>
+              <span>{text.processingText}</span>
             </div>
           )}
         </div>
@@ -860,7 +1157,7 @@ function StealthTransferApp() {
       {result && !result.success && (
         <div className="mt-4 p-4 rounded-lg text-sm bg-red-900/20 border border-red-500/30">
           <h3 className="font-semibold mb-2 text-red-400">
-            ❌ Execution Failed
+            {text.executionFailed}
           </h3>
           <p className="text-xs text-red-300">{result.error}</p>
         </div>
@@ -870,15 +1167,15 @@ function StealthTransferApp() {
 }
 
 // Coming Soon component
-function ComingSoonApp({ tool }: { tool: any }) {
+function ComingSoonApp({ tool, lang }: { tool: any; lang: "en" | "zh" }) {
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 text-center">
       <div className="text-6xl mb-4">{tool.icon}</div>
       <h2 className="text-2xl font-bold mb-2">{tool.name}</h2>
       <p className="text-gray-600 mb-6">{tool.description}</p>
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p className="text-yellow-700 font-semibold">🚧 Coming Soon</p>
-        <p className="text-sm text-gray-600 mt-2">Stay tuned...</p>
+        <p className="text-yellow-700 font-semibold">{lang === "zh" ? "🚧 即将上线" : "🚧 Coming Soon"}</p>
+        <p className="text-sm text-gray-600 mt-2">{lang === "zh" ? "敬请期待..." : "Stay tuned..."}</p>
       </div>
     </div>
   );
@@ -888,6 +1185,36 @@ export default function Home() {
   const [lang, setLang] = useState<"en" | "zh">("en");
   const [selectedTool, setSelectedTool] = useState(tools[0]);
   const [dailyUsage, setDailyUsage] = useState(0);
+
+  // Translation object for main page
+  const t = {
+    en: {
+      tools: "Tools",
+      privacy: "Privacy",
+      wallet: "Wallet",
+      defi: "DeFi",
+      analytics: "Analytics",
+      dailyUsage: "Daily Usage",
+      totalUsers: "Total Users",
+      disclaimer: "Disclaimer",
+      terms: "Terms",
+      privacyPolicy: "Privacy"
+    },
+    zh: {
+      tools: "工具",
+      privacy: "隐私",
+      wallet: "钱包",
+      defi: "DeFi",
+      analytics: "分析",
+      dailyUsage: "今日使用",
+      totalUsers: "总用户数",
+      disclaimer: "免责声明",
+      terms: "服务条款",
+      privacyPolicy: "隐私政策"
+    }
+  };
+
+  const text = t[lang];
 
   // Initialize daily usage count
   useEffect(() => {
@@ -936,7 +1263,7 @@ export default function Home() {
           {/* Left Sidebar - Tool List */}
           <div className="lg:col-span-1">
             <div className="bg-[#1a1a1a] border border-[#d4af37]/20 rounded-xl p-4 sticky top-24">
-              <h2 className="text-lg font-bold mb-4 text-[#d4af37]">Tools</h2>
+              <h2 className="text-lg font-bold mb-4 text-[#d4af37]">{text.tools}</h2>
               <div className="space-y-2">
                 {tools.map((tool) => (
                   <button
@@ -957,9 +1284,9 @@ export default function Home() {
                         <p className={`text-xs truncate ${
                           selectedTool.id === tool.id ? "text-[#d4af37]/70" : "text-gray-500"
                         }`}>
-                          {tool.category === "privacy" ? "Privacy" : 
-                           tool.category === "wallet" ? "Wallet" :
-                           tool.category === "defi" ? "DeFi" : "Analytics"}
+                          {tool.category === "privacy" ? text.privacy : 
+                           tool.category === "wallet" ? text.wallet :
+                           tool.category === "defi" ? text.defi : text.analytics}
                         </p>
                       </div>
                       {tool.status === "active" && (
@@ -983,11 +1310,11 @@ export default function Home() {
                     <div className="grid grid-cols-2 gap-2 mb-4">
                       <div className="bg-[#0a0a0a] border border-[#d4af37]/20 p-2 rounded text-center">
                         <div className="text-lg font-bold text-[#d4af37]">{dailyUsage}</div>
-                        <div className="text-xs text-gray-400">Daily Usage</div>
+                        <div className="text-xs text-gray-400">{text.dailyUsage}</div>
                       </div>
                       <div className="bg-[#0a0a0a] border border-[#10b981]/20 p-2 rounded text-center">
                         <div className="text-lg font-bold text-[#10b981]">{selectedTool.users}</div>
-                        <div className="text-xs text-gray-400">Total Users</div>
+                        <div className="text-xs text-gray-400">{text.totalUsers}</div>
                       </div>
                     </div>
 
@@ -1000,7 +1327,7 @@ export default function Home() {
                           rel="noopener noreferrer"
                           className="hover:text-[#d4af37] transition-colors duration-200"
                         >
-                          Disclaimer
+                          {text.disclaimer}
                         </a>
                         <span>|</span>
                         <a 
@@ -1009,7 +1336,7 @@ export default function Home() {
                           rel="noopener noreferrer"
                           className="hover:text-[#d4af37] transition-colors duration-200"
                         >
-                          Terms
+                          {text.terms}
                         </a>
                         <span>|</span>
                         <a 
@@ -1018,7 +1345,7 @@ export default function Home() {
                           rel="noopener noreferrer"
                           className="hover:text-[#d4af37] transition-colors duration-200"
                         >
-                          Privacy
+                          {text.privacyPolicy}
                         </a>
                       </div>
                       <div className="text-center text-[10px] text-gray-600 mt-1">
@@ -1035,12 +1362,12 @@ export default function Home() {
           <div className="lg:col-span-3">
             {selectedTool.status === "active" ? (
               selectedTool.id === 1 ? (
-                <StealthTransferApp />
+                <StealthTransferApp lang={lang} />
               ) : (
-                <ComingSoonApp tool={selectedTool} />
+                <ComingSoonApp tool={selectedTool} lang={lang} />
               )
             ) : (
-              <ComingSoonApp tool={selectedTool} />
+              <ComingSoonApp tool={selectedTool} lang={lang} />
             )}
           </div>
         </div>

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Globe, ArrowLeft } from "lucide-react";
 
 export default function DisclaimerPage() {
-  const [lang, setLang] = useState<"en" | "zh">("zh");
+  const [lang, setLang] = useState<"en" | "zh">("en");
 
   const content = {
     en: {

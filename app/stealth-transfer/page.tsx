@@ -51,7 +51,7 @@ export default function StealthTransferPage() {
       transferAmount: "Transfer Amount (BNB) *",
       numHops: "Number of Hops:",
       custom: "Custom",
-      serviceFee: "Service Fee",
+      serviceFee: "Donation",
       estimatedGas: "Estimated Gas",
       totalFee: "Total Fee",
       expectedReceive: "Expected Receive",
@@ -110,7 +110,7 @@ export default function StealthTransferPage() {
       transferAmount: "转账金额 (BNB) *",
       numHops: "跳数:",
       custom: "自定义",
-      serviceFee: "服务费",
+      serviceFee: "捐赠",
       estimatedGas: "预估 Gas",
       totalFee: "总费用",
       expectedReceive: "预计收到",
@@ -594,7 +594,7 @@ export default function StealthTransferPage() {
                       <p>{t[lang].success} {result.success_count}</p>
                       <p>{t[lang].failed} {result.failed_count}</p>
                       <p>{t[lang].targetReceived} {result.total_collected} BNB</p>
-                      <p>{t[lang].serviceFee}: {result.service_fee} BNB</p>
+                      <p>{t[lang].serviceFee} {result.service_fee} BNB</p>
                     </div>
                   ) : (
                     <p className="text-sm text-red-700">{result.error}</p>
