@@ -313,6 +313,20 @@ class AdvancedMixerEngine:
                 logger.info(f"  ✅ 源地址隔离: {from_address[:10]}... → {isolation_addr_1[:10]}...")
                 logger.info(f"  🔒 链上无法直接追溯到源地址")
                 
+                # 关键：等待资金真正到账再进入阶段 1（否则读到的余额为 0）
+                logger.info(f"  ⏳ 等待资金到账...")
+                try:
+                    receipt = self.w3.eth.wait_for_transaction_receipt(
+                        result['tx_hash'], timeout=30
+                    )
+                    if receipt['status'] != 1:
+                        raise Exception("源地址隔离交易上链但失败")
+                    logger.info(f"  ✅ 资金已到账 (区块 {receipt['blockNumber']})")
+                except Exception as wait_err:
+                    logger.warning(f"  ⚠️ 等待超时，降级到原地址: {wait_err}")
+                    # 降级：不做源地址隔离
+                    pass
+                
                 # 隔离延迟
                 if isolation_delay > 0:
                     logger.info(f"     ⏳ 隔离延迟 {isolation_delay} 秒...")
@@ -340,17 +354,31 @@ class AdvancedMixerEngine:
         num_start_addresses = max(5, num_hops // 5)
         logger.info(f"\n🌱 阶段 1: 分散到 {num_start_addresses} 个起始地址")
         
-        # 使用随机金额分配
+        # 使用随机金额分配 —— 为每笔交易预留 gas（不只为 1 笔）
         current_balance = self.transfer_engine.get_balance(from_address)
-        gas_reserve = 0.0003
-        available_amount = current_balance - gas_reserve
+        gas_reserve_per_tx = 0.0003
+        # 为分散阶段所有交易预留 gas
+        total_gas_reserve = gas_reserve_per_tx * (num_start_addresses + 2)
+        available_amount = current_balance - total_gas_reserve
+
+        # 防御：余额不足时跳过阶段 1，直接用当前地址作为起点进入阶段 2
+        if available_amount <= 0:
+            logger.warning(
+                f"⚠️ 阶段 1 跳过：余额 {current_balance:.8f} 不足以分散 "
+                f"({num_start_addresses} 笔 × gas)"
+            )
+            num_start_addresses = 0
+            start_amounts = []
+        else:
+            start_amounts = self.generate_random_amounts(
+                available_amount,
+                num_start_addresses,
+                use_round_numbers=True
+            )
         
-        start_amounts = self.generate_random_amounts(
-            available_amount,
-            num_start_addresses,
-            use_round_numbers=True
-        )
-        
+        # 为阶段 1 预先获取 nonce，后续自增避免冲突
+        stage1_nonce = self.w3.eth.get_transaction_count(from_address, 'pending')
+
         for i in range(num_start_addresses):
             addr_idx = start_offset + i
             if addr_idx >= len(intermediate_addresses):
@@ -358,13 +386,19 @@ class AdvancedMixerEngine:
                 
             start_addr = intermediate_addresses[addr_idx]['address']
             amount = start_amounts[i]
-            
+
+            # 防御：非正数金额跳过
+            if amount is None or amount <= 0:
+                logger.warning(f"  ⚠️ 跳过分散 {i+1}: 金额无效 ({amount})")
+                continue
+
             try:
                 result = self._send_transaction(
                     from_private_key=from_private_key,
                     to_address=start_addr,
                     amount=amount,
-                    gas_level=gas_level
+                    gas_level=gas_level,
+                    nonce=stage1_nonce + i
                 )
                 
                 results.append({
@@ -378,8 +412,8 @@ class AdvancedMixerEngine:
                 
                 logger.info(f"  ✅ 分散 {i+1}/{num_start_addresses}: → {start_addr[:10]}... ({amount:.8f} BNB)")
                 
-                # 阶段 1（从同一地址分散）：只保留最小间隔避免 nonce 冲突
-                time.sleep(0.15)
+                # 阶段 1（从同一地址分散）：只保留最小间隔避免 RPC 限流
+                time.sleep(0.1)
             
             except Exception as e:
                 logger.error(f"  ❌ 分散 {i+1} 失败: {e}")
@@ -646,6 +680,10 @@ class AdvancedMixerEngine:
         nonce: int = None
     ) -> Dict:
         """发送单笔交易"""
+        # 金额校验：必须为正数，防止 to_wei 溢出
+        if amount is None or amount <= 0:
+            raise ValueError(f"无效金额: {amount} (必须 > 0)")
+        
         account = Account.from_key(from_private_key)
         from_address = account.address
         
@@ -656,7 +694,8 @@ class AdvancedMixerEngine:
         amount_wei = self.w3.to_wei(amount, 'ether')
         
         if nonce is None:
-            nonce = self.w3.eth.get_transaction_count(from_address)
+            # 使用 pending 避免快速连发时 nonce 冲突
+            nonce = self.w3.eth.get_transaction_count(from_address, 'pending')
         
         gas_price_gwei = self.transfer_engine.chain_config['gas_price_gwei'].get(gas_level, 5)
         gas_price_wei = self.w3.to_wei(gas_price_gwei, 'gwei')
