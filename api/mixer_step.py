@@ -335,12 +335,37 @@ class handler(BaseHTTPRequestHandler):
             step = steps[step_idx]
 
             # 执行
-            if step['type'] == 'send':
-                result = execute_send(plan, step)
-            elif step['type'] == 'bridge':
-                result = execute_bridge(plan, step)
-            else:
-                return self._send(400, {'success': False, 'error': f'未知步骤类型: {step["type"]}'})
+            step_type = step['type']
+            error_msg = None
+            result = None
+            try:
+                if step_type == 'send':
+                    result = execute_send(plan, step)
+                elif step_type == 'bridge':
+                    result = execute_bridge(plan, step)
+                else:
+                    return self._send(400, {'success': False, 'error': f'未知步骤类型: {step_type}'})
+            except Exception as step_err:
+                error_msg = str(step_err)
+                # 记录失败
+                try:
+                    from db import save_step, update_session_status
+                    save_step(plan['plan_id'], step_idx, step_type, {}, 'failed', error_msg)
+                except Exception:
+                    pass
+                raise
+
+            # 持久化成功结果
+            try:
+                from db import save_step, update_session_status
+                save_step(plan['plan_id'], step_idx, step_type, result, 'success')
+                next_idx = step_idx + 1
+                if next_idx >= len(steps):
+                    update_session_status(plan['plan_id'], 'done')
+                elif step_idx == 0:
+                    update_session_status(plan['plan_id'], 'running')
+            except Exception:
+                pass
 
             next_idx = step_idx + 1
             done = next_idx >= len(steps)

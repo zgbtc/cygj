@@ -292,6 +292,15 @@ class handler(BaseHTTPRequestHandler):
             # 额外返回源私钥，前端用来签名（不落库）
             plan['from_private_key'] = from_private_key
 
+            # 持久化会话（仅元数据，助记词需前端加密后更新）
+            try:
+                from db import save_session, incr_daily_stats
+                save_session(plan)
+                incr_daily_stats(num_hops, total_amount)
+            except Exception as e:
+                # 数据库失败不影响主流程
+                pass
+
             return self._send(200, {'success': True, 'plan': plan})
 
         except ValueError as e:

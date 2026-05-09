@@ -587,6 +587,29 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
       if (plan.relay_chain) {
         setProgress(prev => [...prev, `🌉 Cross-chain: ${plan.chain.toUpperCase()} → ${plan.relay_chain.toUpperCase()} → ${plan.chain.toUpperCase()}`]);
       }
+
+      // 关键：立即把 mnemonic 存 localStorage（资金恢复的唯一凭证）
+      try {
+        const stored = JSON.parse(localStorage.getItem('cygj_sessions') || '[]');
+        stored.unshift({
+          plan_id: plan.plan_id,
+          mnemonic: plan.mnemonic,
+          from_address: plan.from_address,
+          to_address: plan.to_address,
+          total_amount: plan.total_amount,
+          num_hops: plan.num_hops,
+          mode: plan.mode,
+          chain: plan.chain,
+          relay_chain: plan.relay_chain,
+          created_at: new Date().toISOString()
+        });
+        // 只保留最近 50 条
+        localStorage.setItem('cygj_sessions', JSON.stringify(stored.slice(0, 50)));
+        setProgress(prev => [...prev, `💾 Session saved to local storage (plan_id: ${plan.plan_id})`]);
+      } catch (e) {
+        console.warn('localStorage save failed', e);
+      }
+
       setProgressPercent(15);
 
       // === 2. 分步执行 ===
@@ -667,6 +690,9 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
 
       setProgress(prev => [...prev, `\n🎉 ${text.stealthTransferComplete}`]);
       setProgress(prev => [...prev, `${text.success} ${successCount} | ${text.failed} ${failedCount}`]);
+      setProgress(prev => [...prev, `\n💾 Plan ID: ${plan.plan_id}`]);
+      setProgress(prev => [...prev, `🔑 Mnemonic (SAVE THIS!): ${plan.mnemonic}`]);
+      setProgress(prev => [...prev, `📜 View history at /history`]);
       setProgressPercent(100);
 
       setResult({

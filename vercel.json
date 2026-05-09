@@ -11,6 +11,9 @@
     },
     "api/mixer_bridge_status.py": {
       "maxDuration": 15
+    },
+    "api/session.py": {
+      "maxDuration": 10
     }
   }
 }
