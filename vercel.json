@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/mixer.py": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/mixer_plan.py": {
       "maxDuration": 15
