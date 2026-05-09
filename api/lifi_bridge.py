@@ -245,6 +245,58 @@ class LiFiBridge:
             logger.error(f"获取链列表失败: {e}")
             return []
 
+    def multi_chain_mixing_path(self, base_chain: str, num_hops: int) -> list:
+        """
+        生成多链隐私转账路径
+        
+        Args:
+            base_chain: 起始链（如 'bsc', 'bsc_testnet'）
+            num_hops: 总跳数
+        
+        Returns:
+            路径列表，每个元素为 {'chain': str, 'hop': int}
+        """
+        import random
+
+        # 标准化链名（去掉 _testnet 后缀）
+        chain_key = base_chain.replace('_testnet', '')
+        if chain_key not in CHAIN_IDS:
+            chain_key = 'bsc'
+
+        # 可用的中间链（排除起始链）
+        available_chains = [c for c in CHAIN_IDS.keys() if c != chain_key]
+        relay_chains = ['polygon', 'arbitrum', 'optimism', 'base']
+        relay_chains = [c for c in relay_chains if c in CHAIN_IDS]
+
+        path = []
+        hops_per_segment = max(1, num_hops // 4)
+
+        # 段1：在起始链上跳转
+        for i in range(hops_per_segment):
+            path.append({'chain': chain_key, 'hop': len(path) + 1, 'type': 'same_chain'})
+
+        # 段2：跨链到中间链1
+        mid_chain_1 = random.choice(relay_chains)
+        path.append({'chain': mid_chain_1, 'hop': len(path) + 1, 'type': 'cross_chain'})
+        for i in range(hops_per_segment):
+            path.append({'chain': mid_chain_1, 'hop': len(path) + 1, 'type': 'same_chain'})
+
+        # 段3：跨链到中间链2
+        remaining = [c for c in relay_chains if c != mid_chain_1]
+        mid_chain_2 = random.choice(remaining) if remaining else mid_chain_1
+        path.append({'chain': mid_chain_2, 'hop': len(path) + 1, 'type': 'cross_chain'})
+        for i in range(hops_per_segment):
+            path.append({'chain': mid_chain_2, 'hop': len(path) + 1, 'type': 'same_chain'})
+
+        # 段4：跨链回起始链
+        path.append({'chain': chain_key, 'hop': len(path) + 1, 'type': 'cross_chain'})
+        remaining_hops = num_hops - len(path)
+        for i in range(max(0, remaining_hops)):
+            path.append({'chain': chain_key, 'hop': len(path) + 1, 'type': 'same_chain'})
+
+        logger.info(f"🗺️ 生成多链路径: {len(path)} 跳, 经过 {chain_key} → {mid_chain_1} → {mid_chain_2} → {chain_key}")
+        return path
+
 
 # 全局实例
 _lifi_bridge = None

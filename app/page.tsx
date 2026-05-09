@@ -898,6 +898,33 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
         )}
       </button>
 
+      {/* Progress Display - above button area, shown before FAQ */}
+      {progress.length > 0 && (
+        <div className="mt-4 bg-[#0a0a0a] border border-[#d4af37]/30 text-[#d4af37] p-3 rounded-lg font-mono text-xs max-h-64 overflow-y-auto shadow-lg shadow-[#d4af37]/10">
+          {progress.map((line, index) => (
+            <div key={index} className="whitespace-pre-wrap">
+              {line}
+            </div>
+          ))}
+          {isLoading && (
+            <div className="mt-2 flex items-center text-xs">
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#d4af37] mr-2"></div>
+              <span>{text.processingText}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Result - Only show on error */}
+      {result && !result.success && (
+        <div className="mt-4 p-4 rounded-lg text-sm bg-red-900/20 border border-red-500/30">
+          <h3 className="font-semibold mb-2 text-red-400">
+            {text.executionFailed}
+          </h3>
+          <p className="text-xs text-red-300">{result.error}</p>
+        </div>
+      )}
+
       {/* FAQ Section */}
       <div className="mt-6">
         <h3 className="text-sm font-semibold text-[#d4af37] mb-3 border-b border-[#d4af37]/30 pb-2">{text.faq}</h3>
@@ -1132,36 +1159,8 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
                 <p className="ml-2">{text.faq5Case3Cause}</p>
               </div>
             )}
-          </div>
-        </div>
+    </div>
       </div>
-
-      {/* Progress Display */}
-      {progress.length > 0 && (
-        <div className="mt-4 bg-[#0a0a0a] border border-[#d4af37]/30 text-[#d4af37] p-3 rounded-lg font-mono text-xs max-h-64 overflow-y-auto shadow-lg shadow-[#d4af37]/10">
-          {progress.map((line, index) => (
-            <div key={index} className="whitespace-pre-wrap">
-              {line}
-            </div>
-          ))}
-          {isLoading && (
-            <div className="mt-2 flex items-center text-xs">
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[#d4af37] mr-2"></div>
-              <span>{text.processingText}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Result - Only show on error */}
-      {result && !result.success && (
-        <div className="mt-4 p-4 rounded-lg text-sm bg-red-900/20 border border-red-500/30">
-          <h3 className="font-semibold mb-2 text-red-400">
-            {text.executionFailed}
-          </h3>
-          <p className="text-xs text-red-300">{result.error}</p>
-        </div>
-      )}
     </div>
   );
 }
