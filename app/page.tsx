@@ -578,7 +578,20 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
       });
 
       setProgressPercent(30);
-      const data = await response.json();
+
+      // 安全解析响应（后端可能返回非 JSON 的 HTML 错误页）
+      const contentType = response.headers.get("content-type") || "";
+      let data: any;
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        const snippet = text.slice(0, 200);
+        data = {
+          success: false,
+          error: `Server error (status ${response.status}): ${snippet}${text.length > 200 ? "..." : ""}`
+        };
+      }
       setProgressPercent(40);
       
       if (data.success && data.results) {
