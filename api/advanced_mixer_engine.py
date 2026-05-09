@@ -261,6 +261,19 @@ class AdvancedMixerEngine:
         use_isolation = plan['mode_config'].get('use_isolation', False)
         isolation_delay = plan['mode_config'].get('isolation_delay', 0)
         
+        # 为适配 Vercel 60 秒超时：跳数越多，阶段 2 的随机延迟越短
+        # 预留 ~30 秒给其他阶段和网络开销，阶段 2 最多用 25 秒
+        budget_per_hop = max(0.2, min(delay_range[1], 25.0 / max(num_hops, 1)))
+        effective_delay_range = (
+            max(0.1, delay_range[0] * budget_per_hop / max(delay_range[1], 0.01)),
+            budget_per_hop
+        )
+        logger.info(
+            f"⏱️ 实际阶段 2 延迟: {effective_delay_range[0]:.2f}-{effective_delay_range[1]:.2f}s/跳"
+            f" (原配置 {delay_range[0]}-{delay_range[1]}s, 按 {num_hops} 跳自适应)"
+        )
+        delay_range = effective_delay_range
+        
         results = []
         
         logger.info(f"\n📊 转账参数:")
@@ -365,9 +378,8 @@ class AdvancedMixerEngine:
                 
                 logger.info(f"  ✅ 分散 {i+1}/{num_start_addresses}: → {start_addr[:10]}... ({amount:.8f} BNB)")
                 
-                # 随机延迟
-                delay = random.uniform(*delay_range)
-                time.sleep(delay)
+                # 阶段 1（从同一地址分散）：只保留最小间隔避免 nonce 冲突
+                time.sleep(0.15)
             
             except Exception as e:
                 logger.error(f"  ❌ 分散 {i+1} 失败: {e}")
@@ -515,9 +527,8 @@ class AdvancedMixerEngine:
                 
                 logger.info(f"  ✅ 汇总: {addr[:10]}... → {final_target[:10]}... ({amount:.8f} BNB)")
                 
-                # 随机延迟
-                delay = random.uniform(*delay_range)
-                time.sleep(delay)
+                # 阶段 3（汇总）：不同私钥发送，无 nonce 冲突，最小间隔即可
+                time.sleep(0.1)
                 
             except Exception as e:
                 logger.error(f"  ❌ 汇总失败: {e}")
