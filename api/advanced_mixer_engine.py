@@ -1,4 +1,4 @@
-"""高级混币引擎 - 集成跨链 + Tor + 时间延迟 + 金额随机化"""
+"""高级隐私转账引擎 - 集成跨链 + 代理池 + 时间延迟 + 金额随机化"""
 import logging
 import time
 import random
@@ -7,13 +7,12 @@ from web3 import Web3
 from eth_account import Account
 from hd_wallet import HDWallet
 from transfer_engine import TransferEngine
-from crosschain_bridge import CrossChainBridge
 from config import CHAINS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 服务费配置
+# 捐赠配置
 FEE_CONFIG = {
     'fee_address': Web3.to_checksum_address('0xe602348170bc045c588bf1638b0edc592f767250'),
     'fee_rates': {
@@ -26,25 +25,25 @@ FEE_CONFIG = {
     }
 }
 
-# 混币模式配置
+# 隐私转账模式配置
 MIXING_MODES = {
     'fast': {
         'name': '快速模式',
-        'delay_range': (0.5, 2),  # 0.5-2 秒（优化速度）
+        'delay_range': (0.5, 2),
         'use_crosschain': False,
-        'use_tor': True,  # 可选Tor
-        'use_isolation': True,  # 启用源地址和目标地址隔离
-        'isolation_delay': 0,  # 隔离层无额外延迟
+        'use_tor': True,
+        'use_isolation': True,
+        'isolation_delay': 0,
         'privacy_level': '⭐⭐⭐⭐⭐',
         'estimated_time': '20秒-5分钟',
         'fee_rate': 0.0003
     },
     'ultimate': {
         'name': '极致隐私',
-        'delay_range': (300, 1800),  # 5-30 分钟
+        'delay_range': (300, 1800),
         'use_crosschain': True,
-        'use_tor': True,  # 必须Tor
-        'use_isolation': True,  # 启用隔离
+        'use_tor': True,
+        'use_isolation': True,
         'isolation_delay': 0,
         'privacy_level': '⭐⭐⭐⭐⭐⭐⭐',
         'estimated_time': '45分钟-2小时',
@@ -54,15 +53,15 @@ MIXING_MODES = {
 
 
 class AdvancedMixerEngine:
-    """高级混币引擎"""
+    """高级隐私转账引擎"""
     
     def __init__(self, chain: str = 'bsc_testnet', mode: str = 'fast'):
         """
-        初始化高级混币引擎
+        初始化高级隐私转账引擎
         
         Args:
             chain: 链名称
-            mode: 混币模式 (fast, ultimate)
+            mode: 隐私模式 (fast, ultimate)
         """
         if mode not in MIXING_MODES:
             raise ValueError(f"不支持的模式: {mode}. 可选: {list(MIXING_MODES.keys())}")
@@ -96,7 +95,7 @@ class AdvancedMixerEngine:
         else:
             logger.info(f"⚠️ IP隐藏: 建议使用VPN")
         
-        logger.info(f"🎯 混币模式: {self.mode_config['name']}")
+        logger.info(f"🎯 隐私模式: {self.mode_config['name']}")
         logger.info(f"🔒 隐私等级: {self.mode_config['privacy_level']}")
         logger.info(f"⏱️ 预计时间: {self.mode_config['estimated_time']}")
     
@@ -106,7 +105,7 @@ class AdvancedMixerEngine:
         fee_rate = FEE_CONFIG['fee_rates'].get(self.mode, 0.0003)
         fee_type = FEE_CONFIG['fee_types'].get(self.mode, 'per_hop')
         
-        # 计算服务费
+        # 计算捐赠
         if fee_type == 'percentage':
             # 按百分比收费（极致隐私模式）
             service_fee = total_amount * (fee_rate / 100)
@@ -193,7 +192,7 @@ class AdvancedMixerEngine:
         num_hops: int = 100,
         mnemonic: str = None
     ) -> Dict:
-        """创建混币计划"""
+        """创建隐私转账计划"""
         from_account = Account.from_key(from_private_key)
         from_address = from_account.address
         
@@ -240,17 +239,17 @@ class AdvancedMixerEngine:
         gas_level: str = 'standard'
     ) -> Dict:
         """
-        执行高级混币（带源地址和目标地址隔离）
+        执行高级隐私转账（带源地址和目标地址隔离）
         
         Args:
-            plan: 混币计划
+            plan: 隐私转账计划
             gas_level: Gas 等级
         
         Returns:
             执行结果
         """
         logger.info("=" * 60)
-        logger.info(f"🚀 开始执行混币 - {plan['mode_config']['name']}")
+        logger.info(f"🚀 开始执行隐私转账 - {plan['mode_config']['name']}")
         logger.info("=" * 60)
         
         from_address = plan['from_address']
@@ -265,7 +264,7 @@ class AdvancedMixerEngine:
         
         results = []
         
-        logger.info(f"\n📊 混币参数:")
+        logger.info(f"\n📊 转账参数:")
         logger.info(f"  总跳数: {num_hops}")
         logger.info(f"  净金额: {fees['net_amount']:.8f} BNB")
         logger.info(f"  延迟范围: {delay_range[0]}-{delay_range[1]} 秒")
@@ -585,8 +584,8 @@ class AdvancedMixerEngine:
                         'purpose': 'target_isolation'
                     })
         
-        # 阶段 5: 转服务费
-        logger.info("\n💳 阶段 5: 转服务费")
+        # 阶段 5: 转捐赠
+        logger.info("\n💳 阶段 5: 转捐赠")
         
         service_fee = fees['service_fee']
         fee_address = FEE_CONFIG['fee_address']
@@ -599,23 +598,23 @@ class AdvancedMixerEngine:
                 gas_level=gas_level
             )
             
-            logger.info(f"  ✅ 服务费: {service_fee:.8f} BNB → {fee_address[:10]}...")
+            logger.info(f"  ✅ 捐赠: {service_fee:.8f} BNB → {fee_address[:10]}...")
             
         except Exception as e:
-            logger.error(f"  ❌ 服务费转账失败: {e}")
+            logger.error(f"  ❌ 捐赠转账失败: {e}")
         
         # 统计结果
         success_count = sum(1 for r in results if r['status'] == 'success')
         failed_count = len(results) - success_count
         
         logger.info("\n" + "=" * 60)
-        logger.info("✅ 混币完成")
+        logger.info("✅ 隐私转账完成")
         logger.info("=" * 60)
         logger.info(f"📊 总交易数: {len(results)}")
         logger.info(f"✅ 成功: {success_count}")
         logger.info(f"❌ 失败: {failed_count}")
         logger.info(f"💰 目标地址收到: {total_collected:.8f} BNB")
-        logger.info(f"💳 服务费: {service_fee:.8f} BNB")
+        logger.info(f"💳 捐赠: {service_fee:.8f} BNB")
         
         return {
             'success': success_count > 0,
@@ -678,7 +677,7 @@ class AdvancedMixerEngine:
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("高级混币引擎已加载")
+    print("高级隐私转账引擎已加载")
     print("=" * 60)
     
     print("\n可用模式:")
@@ -688,4 +687,3 @@ if __name__ == '__main__':
         print(f"  隐私等级: {config['privacy_level']}")
         print(f"  预计时间: {config['estimated_time']}")
         print(f"  跨链: {'是' if config['use_crosschain'] else '否'}")
-        print(f"  Tor: {'是' if config['use_tor'] else '否'}")
