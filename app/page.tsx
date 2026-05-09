@@ -8,9 +8,9 @@ import { Globe } from "lucide-react";
 const tools = [
   {
     id: 1,
-    name: "Stealth Transfer Mixer",
+    name: "Stealth Transfer Router",
     category: "privacy",
-    description: "68+ chains, the only untraceable mixer. Multi-hop cross-chain transfers 100% hide fund paths, IP untraceable, absolute privacy protection",
+    description: "68+ blockchain supported. Professional multi-hop cross-chain relay solution, shielding on-chain transaction traces and network IP, delivering reliable Web3 identity and asset privacy protection.",
     icon: "🎭",
     chains: ["BSC", "ETH"],
     status: "active",
@@ -172,7 +172,7 @@ function StealthTransferApp() {
     return () => clearInterval(interval);
   }, []);
 
-  // 智能识别输入类型（私钥或助记词）
+  // Auto-detect input type (private key or mnemonic)
   const detectInputType = (input: string): "private_key" | "mnemonic" => {
     const trimmed = input.trim();
     const words = trimmed.split(/\s+/);
@@ -402,20 +402,20 @@ function StealthTransferApp() {
       {/* Private Key / Mnemonic Input */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
-          源地址私钥/助记词 *
+          Source Private Key / Mnemonic *
         </label>
         <textarea
           value={privateKey}
           onChange={(e) => handleInputChange(e.target.value)}
-          placeholder="输入私钥或助记词（12/24个单词）"
+          placeholder="Enter private key or mnemonic (12/24 words)"
           rows={3}
           className="w-full px-4 py-2 bg-[#0a0a0a] border-b-2 border-[#d4af37]/50 text-white placeholder-gray-500 rounded-lg focus:ring-2 focus:ring-[#d4af37] focus:border-[#d4af37] transition-all text-sm resize-none"
         />
         {detectedInputType && (
           <p className="text-xs text-[#d4af37] mt-1 flex items-center">
             <span className="mr-1">ℹ️</span>
-            已识别为：{detectedInputType === 'mnemonic' ? '助记词' : '私钥'}
-            {detectedInputType === 'mnemonic' && ' (将使用第一个地址)'}
+            Detected as: {detectedInputType === 'mnemonic' ? 'Mnemonic' : 'Private Key'}
+            {detectedInputType === 'mnemonic' && ' (will use first address)'}
           </p>
         )}
       </div>
@@ -925,7 +925,7 @@ export default function Home() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1a1a1a] hover:bg-[#2a2a2a] border border-[#d4af37]/30 hover:border-[#d4af37] text-sm font-medium transition text-white"
             >
               <Globe className="w-4 h-4 text-[#d4af37]" />
-              {lang === "en" ? "中文" : "EN"}
+              {lang === "en" ? "中文" : "English"}
             </button>
           </div>
         </nav>

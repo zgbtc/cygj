@@ -22,8 +22,8 @@ export default function StealthTransferPage() {
   const t = {
     en: {
       backHome: "Back to Home",
-      title: "Stealth Transfer Mixer",
-      subtitle: "Untraceable Crypto Mixer",
+      title: "Stealth Transfer Router",
+      subtitle: "Professional Privacy Protection Solution",
       userRating: "User Rating",
       activeUsers: "Active Users",
       howItWorks: "How It Works",
@@ -81,8 +81,8 @@ export default function StealthTransferPage() {
     },
     zh: {
       backHome: "返回首页",
-      title: "鬼魅无影混币引擎",
-      subtitle: "唯一无法追踪的混币器",
+      title: "鬼魅无影安全转账",
+      subtitle: "专业隐私防护方案",
       userRating: "用户评分",
       activeUsers: "活跃用户",
       howItWorks: "工作原理",
