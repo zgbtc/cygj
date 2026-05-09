@@ -2,6 +2,15 @@
   "functions": {
     "api/mixer.py": {
       "maxDuration": 60
+    },
+    "api/mixer_plan.py": {
+      "maxDuration": 15
+    },
+    "api/mixer_step.py": {
+      "maxDuration": 60
+    },
+    "api/mixer_bridge_status.py": {
+      "maxDuration": 15
     }
   }
 }

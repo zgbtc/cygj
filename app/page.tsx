@@ -531,102 +531,155 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
 
     try {
       setProgress(prev => [...prev, text.startMixing]);
-      setProgressPercent(5);
+      setProgressPercent(3);
       setProgress(prev => [...prev, `${text.mode} ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
-      setProgressPercent(10);
       
-      // 根据模式显示IP隐藏状态
       if (mode === 'ultimate') {
         setProgress(prev => [...prev, `🔒 ${text.ipHidden}`]);
       } else {
         setProgress(prev => [...prev, `⚠️ ${text.ipHiddenVpn}`]);
       }
-      setProgressPercent(15);
-      
       setProgress(prev => [...prev, `${text.hops} ${numHops}`]);
-      setProgressPercent(20);
-      
-      // 智能识别输入类型
+      setProgressPercent(8);
+
       const inputType = detectInputType(privateKey);
       const inputValue = privateKey.trim();
-      
-      // 构建请求体
-      const requestBody: any = {
+
+      // === 1. 调用 plan 端点拿完整计划 ===
+      const planBody: any = {
         chain,
         mode,
         input_type: inputType,
         to_address: toAddress,
         total_amount: parseFloat(amount),
         num_hops: numHops,
-        mnemonic: mnemonic || undefined,
-        gas_level: "standard"
+        mnemonic: mnemonic || undefined
       };
-      
-      // 根据输入类型添加对应字段
       if (inputType === 'mnemonic') {
-        requestBody.from_mnemonic = inputValue;
+        planBody.from_mnemonic = inputValue;
         setProgress(prev => [...prev, `✅ ${text.detectedMnemonic}`]);
       } else {
-        requestBody.from_private_key = inputValue;
+        planBody.from_private_key = inputValue;
         setProgress(prev => [...prev, `✅ ${text.detectedPrivateKey}`]);
       }
-      
-      const response = await fetch(`${API_URL}/api/mixer`, {
+
+      setProgress(prev => [...prev, `📋 Building plan...`]);
+      const planResp = await fetch(`${API_URL}/api/mixer_plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(planBody)
       });
-
-      setProgressPercent(30);
-
-      // 安全解析响应（后端可能返回非 JSON 的 HTML 错误页）
-      const contentType = response.headers.get("content-type") || "";
-      let data: any;
-      if (contentType.includes("application/json")) {
-        data = await response.json();
+      const planCt = planResp.headers.get("content-type") || "";
+      let planData: any;
+      if (planCt.includes("application/json")) {
+        planData = await planResp.json();
       } else {
-        const text = await response.text();
-        const snippet = text.slice(0, 200);
-        data = {
-          success: false,
-          error: `Server error (status ${response.status}): ${snippet}${text.length > 200 ? "..." : ""}`
-        };
+        planData = { success: false, error: `Plan API error (${planResp.status})` };
       }
-      setProgressPercent(40);
-      
-      if (data.success && data.results) {
-        setProgress(prev => [...prev, `\n${text.transactionFlowDetails}`]);
-        setProgressPercent(50);
-        
-        // Display address flow for each transaction
-        const totalTxs = data.results.length;
-        data.results.forEach((tx: any, index: number) => {
-          const currentProgress = 50 + Math.floor((index / totalTxs) * 45);
-          setProgressPercent(currentProgress);
-          
-          if (tx.status === 'success') {
-            const fromAddr = tx.from ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}` : 'Source';
-            const toAddr = tx.to ? `${tx.to.slice(0, 6)}...${tx.to.slice(-4)}` : 'Target';
-            const txHash = tx.tx_hash ? `${tx.tx_hash.slice(0, 8)}...` : '';
-            
-            setProgress(prev => [...prev, 
-              `✅ [${index + 1}/${data.results.length}] ${fromAddr} → ${toAddr} (${tx.amount} BNB) ${txHash}`
-            ]);
-          } else if (tx.status === 'failed') {
-            setProgress(prev => [...prev, 
-              `❌ [${index + 1}/${data.results.length}] ${text.transactionFailed} ${tx.error || 'Unknown error'}`
-            ]);
-          }
+      if (!planData.success) {
+        throw new Error(planData.error || 'Plan generation failed');
+      }
+
+      const plan = planData.plan;
+      const totalSteps = plan.total_steps;
+      setProgress(prev => [...prev, `📋 Plan ready: ${totalSteps} steps`]);
+      if (plan.relay_chain) {
+        setProgress(prev => [...prev, `🌉 Cross-chain: ${plan.chain.toUpperCase()} → ${plan.relay_chain.toUpperCase()} → ${plan.chain.toUpperCase()}`]);
+      }
+      setProgressPercent(15);
+
+      // === 2. 分步执行 ===
+      let successCount = 0;
+      let failedCount = 0;
+      const stepResults: any[] = [];
+      let stepIdx = 0;
+
+      while (stepIdx < totalSteps) {
+        const stepResp = await fetch(`${API_URL}/api/mixer_step`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan, step_idx: stepIdx })
         });
-        
-        setProgressPercent(95);
-        setProgress(prev => [...prev, `\n🎉 ${text.stealthTransferComplete}`]);
-        setProgress(prev => [...prev, `${text.targetReceived} ${data.total_collected} BNB`]);
-        setProgress(prev => [...prev, `${text.success} ${data.success_count} | ${text.failed} ${data.failed_count}`]);
-        setProgressPercent(100);
+        const stepCt = stepResp.headers.get("content-type") || "";
+        let stepData: any;
+        if (stepCt.includes("application/json")) {
+          stepData = await stepResp.json();
+        } else {
+          const t = await stepResp.text();
+          stepData = { success: false, error: `Step ${stepIdx} HTTP ${stepResp.status}: ${t.slice(0, 200)}` };
+        }
+
+        if (stepData.success) {
+          const s = stepData.step;
+          const r = stepData.result;
+          successCount++;
+          stepResults.push({ ...s, result: r, status: 'success' });
+
+          if (r.type === 'bridge') {
+            const statusIcon = r.bridge_status === 'DONE' ? '✅' : (r.bridge_status === 'FAILED' ? '❌' : '⏳');
+            setProgress(prev => [...prev, `${statusIcon} [${stepIdx + 1}/${totalSteps}] 🌉 ${r.from_chain} → ${r.to_chain} (${r.amount.toFixed(6)}) ${r.bridge_status}`]);
+
+            // 如果还 pending 且有 txhash，轮询最多 ~40 秒
+            if (r.requires_polling && r.tx_hash) {
+              setProgress(prev => [...prev, `   ⏳ Waiting for bridge to complete...`]);
+              const pollDeadline = Date.now() + 40_000;
+              while (Date.now() < pollDeadline) {
+                await new Promise(res => setTimeout(res, 5000));
+                try {
+                  const ps = await fetch(`${API_URL}/api/mixer_bridge_status`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tx_hash: r.tx_hash, from_chain: r.from_chain, to_chain: r.to_chain })
+                  });
+                  const pd = await ps.json();
+                  if (pd.success && pd.status === 'DONE') {
+                    setProgress(prev => [...prev, `   ✅ Bridge DONE: ${pd.tx_hash_to?.slice(0, 10)}...`]);
+                    break;
+                  }
+                  if (pd.success && pd.status === 'FAILED') {
+                    setProgress(prev => [...prev, `   ❌ Bridge FAILED`]);
+                    break;
+                  }
+                } catch {}
+              }
+            }
+          } else {
+            const fromAddr = r.from ? `${r.from.slice(0, 6)}...${r.from.slice(-4)}` : '';
+            const toAddr = r.to ? `${r.to.slice(0, 6)}...${r.to.slice(-4)}` : '';
+            const txShort = r.tx_hash ? `${r.tx_hash.slice(0, 10)}...` : '';
+            setProgress(prev => [...prev, `✅ [${stepIdx + 1}/${totalSteps}] ${fromAddr} → ${toAddr} (${r.amount.toFixed(6)}) ${txShort}`]);
+          }
+        } else {
+          failedCount++;
+          stepResults.push({ idx: stepIdx, status: 'failed', error: stepData.error });
+          setProgress(prev => [...prev, `❌ [${stepIdx + 1}/${totalSteps}] ${stepData.error}`]);
+          // 致命错误：无法继续
+          if (stepData.error && stepData.error.includes('余额不足')) {
+            setProgress(prev => [...prev, `⚠️ Stopping: insufficient funds`]);
+            break;
+          }
+        }
+
+        stepIdx++;
+        setProgressPercent(15 + Math.floor((stepIdx / totalSteps) * 80));
       }
-      
-      setResult(data);
+
+      setProgress(prev => [...prev, `\n🎉 ${text.stealthTransferComplete}`]);
+      setProgress(prev => [...prev, `${text.success} ${successCount} | ${text.failed} ${failedCount}`]);
+      setProgressPercent(100);
+
+      setResult({
+        success: successCount > 0,
+        total_transactions: totalSteps,
+        success_count: successCount,
+        failed_count: failedCount,
+        results: stepResults,
+        plan: {
+          mnemonic: plan.mnemonic,
+          relay_chain: plan.relay_chain,
+          fees: plan.fees
+        }
+      });
     } catch (error) {
       setProgress(prev => [...prev, `❌ ${text.error} ${error}`]);
       setResult({ success: false, error: String(error) });
