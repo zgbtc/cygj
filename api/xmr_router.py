@@ -163,9 +163,12 @@ def simpleswap_create_exchange(
     api_key: str
 ) -> dict:
     import requests
+    # SimpleSwap 用 'bnb-bsc' 表示 BSC 链上的 BNB，'bnb' 无效
+    fc = 'bnb-bsc' if from_currency.lower() == 'bnb' else from_currency.lower()
+    tc = 'bnb-bsc' if to_currency.lower() == 'bnb' else to_currency.lower()
     payload = {
-        'currency_from': from_currency,
-        'currency_to': to_currency,
+        'currency_from': fc,
+        'currency_to': tc,
         'amount': str(amount),
         'address_to': address,
         'fixed': False,
@@ -304,15 +307,33 @@ def build_xmr_route(
         raise ValueError("没有可用的交换服务商，请配置 CHANGENOW_API_KEY 或 SIMPLESWAP_API_KEY")
 
     # 自动决定拆分数量
+    # 服务商最小单笔金额约 0.013 BNB，拆分要保证每笔 >= 0.013
+    MIN_PER_LEG = 0.013
     if num_splits <= 0:
-        if total_amount < 0.05:
-            num_splits = 2
-        elif total_amount < 0.5:
-            num_splits = 3
+        # 根据总金额计算最多可拆几份
+        max_possible = max(1, int(total_amount / MIN_PER_LEG))
+        if total_amount < MIN_PER_LEG:
+            raise ValueError(f"金额过小：至少需要 {MIN_PER_LEG} BNB（服务商限制）")
+        elif total_amount < 0.05:
+            num_splits = min(2, max_possible)
+        elif total_amount < 0.3:
+            num_splits = min(3, max_possible)
+        elif total_amount < 1.0:
+            num_splits = min(4, max_possible)
         else:
-            num_splits = 4
+            num_splits = min(5, max_possible)
 
-    amounts = _split_amount(total_amount, num_splits)
+    # 拆分并保证每份 >= MIN_PER_LEG
+    attempts = 0
+    while True:
+        amounts = _split_amount(total_amount, num_splits)
+        if min(amounts) >= MIN_PER_LEG or attempts >= 10:
+            break
+        attempts += 1
+    # 如果实在凑不出合规拆分，降低拆分数
+    while num_splits > 1 and min(amounts) < MIN_PER_LEG:
+        num_splits -= 1
+        amounts = _split_amount(total_amount, num_splits)
 
     # 为每笔分配服务商（尽量不重复）
     legs = []
