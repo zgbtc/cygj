@@ -1016,58 +1016,41 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
           </div>
         )}
 
-        {/* 极致隐私模式：跨链路径选择 */}
+        {/* 极致隐私模式：XMR 幽灵路由说明 */}
         {mode === 'ultimate' && (
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-white mb-2">
-              🌉 {lang === 'en' ? 'Cross-chain Path' : '跨链路径'}
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setPathType('simple')}
-                className={`p-3 rounded-lg text-xs border transition-all ${
-                  pathType === 'simple'
-                    ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
-                    : 'bg-[#0a0a0a] border-[#d4af37]/20 text-gray-400 hover:border-[#d4af37]/50'
-                }`}
-              >
-                <div className="font-bold mb-1">{lang === 'en' ? 'Simple' : '简单'}</div>
-                <div className="opacity-80">BSC → Polygon → BSC</div>
-                <div className="opacity-60 mt-1">~60s · $0.05</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPathType('standard')}
-                className={`p-3 rounded-lg text-xs border transition-all ${
-                  pathType === 'standard'
-                    ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
-                    : 'bg-[#0a0a0a] border-[#d4af37]/20 text-gray-400 hover:border-[#d4af37]/50'
-                }`}
-              >
-                <div className="font-bold mb-1">{lang === 'en' ? 'Standard' : '标准'}</div>
-                <div className="opacity-80">BSC → Poly → Arb → BSC</div>
-                <div className="opacity-60 mt-1">~70s · $0.07</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPathType('complex')}
-                className={`p-3 rounded-lg text-xs border transition-all ${
-                  pathType === 'complex'
-                    ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
-                    : 'bg-[#0a0a0a] border-[#d4af37]/20 text-gray-400 hover:border-[#d4af37]/50'
-                }`}
-              >
-                <div className="font-bold mb-1">{lang === 'en' ? 'Complex' : '复杂'}</div>
-                <div className="opacity-80">4-chain hops</div>
-                <div className="opacity-60 mt-1">~80s · $0.09</div>
-              </button>
+          <div className="mt-4 p-4 rounded-xl bg-[#0a0a0a] border border-[#d4af37]/30">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🕵️</span>
+              <span className="text-sm font-bold text-[#d4af37]">
+                {lang === 'en' ? 'XMR Ghost Route' : 'XMR 幽灵路由'}
+              </span>
+              <span className="text-xs bg-[#10b981]/20 text-[#10b981] px-2 py-0.5 rounded-full">
+                {lang === 'en' ? 'Untraceable' : '无法追踪'}
+              </span>
             </div>
-            <p className="text-xs text-[#10b981] mt-2">
-              ✅ {lang === 'en' 
-                ? 'Real cross-chain via LiFi (no API key required, no Tornado Cash)' 
-                : '通过 LiFi 真实跨链（免 API Key，非 Tornado）'}
-            </p>
+            <div className="space-y-1.5 text-xs text-gray-400">
+              <div className="flex items-start gap-2">
+                <span className="text-[#d4af37] mt-0.5">→</span>
+                <span>{lang === 'en' ? 'Auto-splits amount into 2–4 parts' : '自动拆分金额为 2–4 笔'}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-[#d4af37] mt-0.5">→</span>
+                <span>{lang === 'en' ? 'Each part: BNB → XMR (black hole) → BNB' : '每笔：BNB → XMR（黑洞）→ BNB'}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-[#d4af37] mt-0.5">→</span>
+                <span>{lang === 'en' ? 'Random delay between splits (1–5 min)' : '每笔之间随机延迟 1–5 分钟'}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-[#d4af37] mt-0.5">→</span>
+                <span>{lang === 'en' ? 'Multiple providers: ChangeNOW + SimpleSwap + eXch' : '多服务商：ChangeNOW + SimpleSwap + eXch'}</span>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-[#d4af37]/10 flex items-center justify-between text-xs">
+              <span className="text-gray-500">{lang === 'en' ? 'Est. time: 15–40 min' : '预计耗时：15–40 分钟'}</span>
+              <span className="text-gray-500">{lang === 'en' ? 'Fee: ~5–8%' : '手续费：约 5–8%'}</span>
+              <span className="text-[#10b981]">{lang === 'en' ? 'Min: 0.03 BNB' : '最小：0.03 BNB'}</span>
+            </div>
           </div>
         )}
       </div>
