@@ -100,6 +100,41 @@ def get_private_key(plan: dict, key_idx: int) -> str:
     return plan['intermediate_keys'][key_idx]['private_key']
 
 
+def _wait_balance(w3_init, chain: str, address: str, timeout: int = 35) -> tuple:
+    """
+    读余额，如果为 0 则轮询重试（换 RPC 节点），最多 timeout 秒。
+    返回 (balance_wei, w3) - 若成功拿到非 0 余额，w3 是最后查到余额的连接。
+    """
+    try:
+        balance_wei = w3_init.eth.get_balance(address)
+    except Exception:
+        balance_wei = 0
+
+    if balance_wei > 0:
+        return balance_wei, w3_init
+
+    # 余额为 0，可能是 RPC 节点滞后或上一步 tx 还没到达该节点视图
+    deadline = time.time() + timeout
+    attempt = 0
+    w3 = w3_init
+    while time.time() < deadline:
+        attempt += 1
+        try:
+            time.sleep(min(1.5 + attempt * 0.3, 3.5))
+            # 每 3 次换一个新 RPC 节点
+            if attempt % 3 == 0:
+                try:
+                    w3 = connect_chain(chain)
+                except Exception:
+                    pass
+            balance_wei = w3.eth.get_balance(address)
+            if balance_wei > 0:
+                return balance_wei, w3
+        except Exception:
+            continue
+    return balance_wei, w3
+
+
 def execute_send(plan: dict, step: dict) -> dict:
     """执行同链发送"""
     chain = step['chain']
@@ -118,8 +153,11 @@ def execute_send(plan: dict, step: dict) -> dict:
         gas_price = w3.to_wei(5, 'gwei')
     gas_cost_wei = 21000 * gas_price
 
-    # 实时余额
-    balance_wei = w3.eth.get_balance(from_address)
+    # 读余额；若是 max 模式且暂时为 0（RPC 滞后），轮询重试
+    if step['amount'] == 'max':
+        balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=35)
+    else:
+        balance_wei = w3.eth.get_balance(from_address)
 
     # 计算发送金额（精确到 wei，避免浮点误差）
     if step['amount'] == 'max':
@@ -156,15 +194,22 @@ def execute_send(plan: dict, step: dict) -> dict:
     signed = w3.eth.account.sign_transaction(tx, pk)
     raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
     tx_hash = w3.eth.send_raw_transaction(raw)
+    tx_hash_hex = tx_hash.hex()
+
+    # 等待本笔 tx 上链（关键：保证下一步读 to_address 余额时链上已确认）
+    try:
+        w3.eth.wait_for_transaction_receipt(tx_hash_hex, timeout=45, poll_latency=1.0)
+    except Exception:
+        pass  # 超时不致命，下一步会用 _wait_balance 兜底
 
     return {
-        'tx_hash': tx_hash.hex(),
+        'tx_hash': tx_hash_hex,
         'from': from_address,
         'to': to_address,
         'amount': amount,
         'chain': chain,
         'type': 'send',
-        'explorer': explorer_url(chain, tx_hash.hex())
+        'explorer': explorer_url(chain, tx_hash_hex)
     }
 
 
@@ -182,6 +227,9 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
     to_address = Web3.to_checksum_address(step['to_address'])
 
     balance_wei = w3_from.eth.get_balance(from_address)
+    # max 模式下余额为 0 很可能是 RPC 滞后
+    if step['amount'] == 'max' and balance_wei == 0:
+        balance_wei, w3_from = _wait_balance(w3_from, from_chain, from_address, timeout=35)
     balance = float(w3_from.from_wei(balance_wei, 'ether'))
     gas_reserve = GAS_RESERVE.get(from_chain, 0.0002) * 3  # 跨链 gas 更高
 
