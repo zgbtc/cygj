@@ -51,7 +51,12 @@ export default function Footer({ lang = "en" }: FooterProps) {
         
         {/* Copyright */}
         <div className="text-center text-xs text-gray-500">
-          {t[lang].copyright}
+          <Link 
+            href="/keywords" 
+            className="hover:text-[#d4af37] transition-colors duration-200"
+          >
+            {t[lang].copyright}
+          </Link>
         </div>
       </div>
     </footer>
