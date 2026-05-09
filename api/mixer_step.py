@@ -123,28 +123,37 @@ def execute_send(plan: dict, step: dict) -> dict:
     from_address = account.address
     to_address = Web3.to_checksum_address(step['to_address'])
 
-    # 计算金额
-    balance_wei = w3.eth.get_balance(from_address)
-    balance = float(w3.from_wei(balance_wei, 'ether'))
-    gas_reserve = GAS_RESERVE.get(chain, 0.0002)
-
-    if step['amount'] == 'max':
-        amount = balance - gas_reserve
-    else:
-        amount = float(step['amount'])
-
-    if amount <= 0:
-        raise ValueError(
-            f"余额不足：当前 {balance:.8f}, 需预留 gas {gas_reserve}, 可用 {amount}"
-        )
-
-    amount_wei = w3.to_wei(amount, 'ether')
-
-    # Gas price
+    # Gas price（动态，加 20% buffer 防止波动）
     try:
-        gas_price = w3.eth.gas_price
+        gas_price = int(w3.eth.gas_price * 1.2)
     except Exception:
         gas_price = w3.to_wei(5, 'gwei')
+    gas_cost_wei = 21000 * gas_price
+
+    # 实时余额
+    balance_wei = w3.eth.get_balance(from_address)
+
+    # 计算发送金额（精确到 wei，避免浮点误差）
+    if step['amount'] == 'max':
+        # 扣除 gas + 多留 1000 wei 防舍入
+        amount_wei = balance_wei - gas_cost_wei - 1000
+    else:
+        amount_wei = w3.to_wei(float(step['amount']), 'ether')
+
+    if amount_wei <= 0:
+        balance = float(w3.from_wei(balance_wei, 'ether'))
+        gas_buffer = float(w3.from_wei(gas_cost_wei, 'ether'))
+        raise ValueError(
+            f"余额不足：balance={balance:.8f}, need gas={gas_buffer:.8f}, amount_wei={amount_wei}"
+        )
+
+    # 防御：确保 value + gas <= balance
+    if amount_wei + gas_cost_wei > balance_wei:
+        amount_wei = balance_wei - gas_cost_wei - 1000
+        if amount_wei <= 0:
+            raise ValueError(f"扣 gas 后余额为负")
+
+    amount = float(w3.from_wei(amount_wei, 'ether'))
 
     nonce = w3.eth.get_transaction_count(from_address, 'pending')
     tx = {
