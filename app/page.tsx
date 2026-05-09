@@ -498,7 +498,7 @@ function StealthTransferApp() {
       <div className="bg-[#0a0a0a] border border-[#d4af37]/30 p-4 rounded-lg mb-4 shadow-lg shadow-[#d4af37]/10">
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-gray-400 text-xs">Service Fee</p>
+            <p className="text-gray-400 text-xs">Donation</p>
             <p className="font-semibold text-[#d4af37]">
               {mode === 'ultimate' && amount
                 ? (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100).toFixed(4)
@@ -988,6 +988,39 @@ export default function Home() {
                       <div className="bg-[#0a0a0a] border border-[#10b981]/20 p-2 rounded text-center">
                         <div className="text-lg font-bold text-[#10b981]">{selectedTool.users}</div>
                         <div className="text-xs text-gray-400">Total Users</div>
+                      </div>
+                    </div>
+
+                    {/* Legal Links */}
+                    <div className="mt-4 pt-4 border-t border-[#d4af37]/20">
+                      <div className="flex flex-col gap-2 text-xs text-gray-400">
+                        <a 
+                          href="/disclaimer" 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-[#d4af37] transition-colors duration-200 text-center"
+                        >
+                          Disclaimer
+                        </a>
+                        <a 
+                          href="/terms" 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-[#d4af37] transition-colors duration-200 text-center"
+                        >
+                          Terms of Service
+                        </a>
+                        <a 
+                          href="/privacy" 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-[#d4af37] transition-colors duration-200 text-center"
+                        >
+                          Privacy Policy
+                        </a>
+                      </div>
+                      <div className="text-center text-xs text-gray-500 mt-3">
+                        © 2024 CYGJ Crypto Tools
                       </div>
                     </div>
                   </>
