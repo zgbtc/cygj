@@ -1159,7 +1159,8 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
                 <p className="ml-2">{text.faq5Case3Cause}</p>
               </div>
             )}
-    </div>
+          </div>
+        </div>
       </div>
     </div>
   );
