@@ -134,6 +134,7 @@ const MIXING_MODES = {
 function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
   const [chain, setChain] = useState("bsc");
   const [mode, setMode] = useState("fast");
+  const [pathType, setPathType] = useState<"simple" | "standard" | "complex">("standard");
   const [privateKey, setPrivateKey] = useState("");
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
@@ -546,6 +547,90 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
       const inputType = detectInputType(privateKey);
       const inputValue = privateKey.trim();
 
+      // ==========================================
+      // 极致隐私模式：真实多链跨链（LiFi）
+      // 直接调用 /api/mixer，一次性完成所有跨链
+      // ==========================================
+      if (mode === 'ultimate') {
+        const pathMap: Record<string, string[]> = {
+          simple: ['BSC', 'Polygon', 'BSC'],
+          standard: ['BSC', 'Polygon', 'Arbitrum', 'BSC'],
+          complex: ['BSC', 'Polygon', 'Arbitrum', 'Optimism', 'BSC']
+        };
+        const currentPath = pathMap[pathType];
+        
+        setProgress(prev => [...prev, `🌉 ${lang === 'en' ? 'Real cross-chain mixing' : '真实跨链混币'}`]);
+        setProgress(prev => [...prev, `📍 ${lang === 'en' ? 'Path' : '路径'}: ${currentPath.join(' → ')}`]);
+        setProgress(prev => [...prev, `🔢 ${lang === 'en' ? 'Cross-chain hops' : '跨链次数'}: ${currentPath.length - 1}`]);
+        setProgressPercent(10);
+
+        const ultimateBody: any = {
+          chain,
+          mode: 'ultimate',
+          path_type: pathType,
+          input_type: inputType,
+          to_address: toAddress,
+          total_amount: parseFloat(amount),
+          num_hops: numHops,
+          gas_level: 'standard'
+        };
+        if (inputType === 'mnemonic') {
+          ultimateBody.from_mnemonic = inputValue;
+        } else {
+          ultimateBody.from_private_key = inputValue;
+        }
+
+        setProgress(prev => [...prev, `🚀 ${lang === 'en' ? 'Submitting cross-chain request...' : '提交跨链请求...'}`]);
+        setProgressPercent(15);
+
+        const ultResp = await fetch(`${API_URL}/api/mixer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ultimateBody)
+        });
+        const ultData = await ultResp.json();
+
+        if (ultData.success) {
+          setProgressPercent(95);
+          setProgress(prev => [...prev, `\n✅ ${lang === 'en' ? 'Multi-chain mixing completed!' : '多链混币完成！'}`]);
+          
+          // 显示每个跨链步骤
+          (ultData.steps || []).forEach((s: any, i: number) => {
+            const icon = s.status === 'success' ? '✅' : '❌';
+            const fromChain = s.from_chain?.toUpperCase() || '';
+            const toChain = s.to_chain?.toUpperCase() || '';
+            const amtIn = (s.amount || 0).toFixed(6);
+            const amtOut = (s.amount_received || 0).toFixed(6);
+            const txShort = s.tx_hash ? `${s.tx_hash.slice(0, 10)}...` : '';
+            setProgress(prev => [...prev, `${icon} [${i + 1}/${ultData.steps.length}] 🌉 ${fromChain} → ${toChain} | ${amtIn} → ${amtOut} | ${txShort} (${s.tool || ''}, ${s.duration || 0}s)`]);
+          });
+
+          setProgress(prev => [...prev, `\n🎯 ${lang === 'en' ? 'Final amount' : '最终到账'}: ${(ultData.final_amount || 0).toFixed(6)} BNB`]);
+          setProgress(prev => [...prev, `📬 ${lang === 'en' ? 'Target address' : '目标地址'}: ${ultData.target_address || toAddress}`]);
+          setProgress(prev => [...prev, `🆔 Session ID: ${ultData.session_id || ''}`]);
+          setProgressPercent(100);
+
+          setResult({
+            success: true,
+            mode: 'ultimate',
+            total_transactions: ultData.steps?.length || 0,
+            success_count: ultData.success_count || 0,
+            failed_count: ultData.failed_count || 0,
+            results: ultData.steps,
+            session_id: ultData.session_id,
+            final_amount: ultData.final_amount,
+            path: ultData.path
+          });
+        } else {
+          throw new Error(ultData.error || 'Ultimate privacy mixing failed');
+        }
+        return;
+      }
+
+      // ==========================================
+      // 快速模式：单链混币（保持原流程）
+      // ==========================================
+
       // === 1. 调用 plan 端点拿完整计划 ===
       const planBody: any = {
         chain,
@@ -692,6 +777,7 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
       setProgress(prev => [...prev, `${text.success} ${successCount} | ${text.failed} ${failedCount}`]);
       setProgress(prev => [...prev, `\n💾 Plan ID: ${plan.plan_id}`]);
       setProgress(prev => [...prev, `🔑 Mnemonic (SAVE THIS!): ${plan.mnemonic}`]);
+      setProgress(prev => [...prev, `🆘 Recovery: enter Plan ID at /recover to retrieve mnemonic & keys`]);
       setProgress(prev => [...prev, `📜 View history at /history`]);
       setProgressPercent(100);
 
@@ -788,6 +874,61 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
           <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#d4af37]/30 rounded-lg shadow-lg shadow-[#d4af37]/10">
             <p className="text-sm text-gray-300 leading-relaxed">
               <span className="font-semibold text-[#d4af37]">{text.suitableLargeTransfers}</span>, {text.multiHopCrossChain}
+            </p>
+          </div>
+        )}
+
+        {/* 极致隐私模式：跨链路径选择 */}
+        {mode === 'ultimate' && (
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-white mb-2">
+              🌉 {lang === 'en' ? 'Cross-chain Path' : '跨链路径'}
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setPathType('simple')}
+                className={`p-3 rounded-lg text-xs border transition-all ${
+                  pathType === 'simple'
+                    ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
+                    : 'bg-[#0a0a0a] border-[#d4af37]/20 text-gray-400 hover:border-[#d4af37]/50'
+                }`}
+              >
+                <div className="font-bold mb-1">{lang === 'en' ? 'Simple' : '简单'}</div>
+                <div className="opacity-80">BSC → Polygon → BSC</div>
+                <div className="opacity-60 mt-1">~60s · $0.05</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPathType('standard')}
+                className={`p-3 rounded-lg text-xs border transition-all ${
+                  pathType === 'standard'
+                    ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
+                    : 'bg-[#0a0a0a] border-[#d4af37]/20 text-gray-400 hover:border-[#d4af37]/50'
+                }`}
+              >
+                <div className="font-bold mb-1">{lang === 'en' ? 'Standard' : '标准'}</div>
+                <div className="opacity-80">BSC → Poly → Arb → BSC</div>
+                <div className="opacity-60 mt-1">~70s · $0.07</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPathType('complex')}
+                className={`p-3 rounded-lg text-xs border transition-all ${
+                  pathType === 'complex'
+                    ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
+                    : 'bg-[#0a0a0a] border-[#d4af37]/20 text-gray-400 hover:border-[#d4af37]/50'
+                }`}
+              >
+                <div className="font-bold mb-1">{lang === 'en' ? 'Complex' : '复杂'}</div>
+                <div className="opacity-80">4-chain hops</div>
+                <div className="opacity-60 mt-1">~80s · $0.09</div>
+              </button>
+            </div>
+            <p className="text-xs text-[#10b981] mt-2">
+              ✅ {lang === 'en' 
+                ? 'Real cross-chain via LiFi (no API key required, no Tornado Cash)' 
+                : '通过 LiFi 真实跨链（免 API Key，非 Tornado）'}
             </p>
           </div>
         )}

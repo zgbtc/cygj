@@ -17,8 +17,16 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+SUPABASE_URL = (
+    os.environ.get('SUPABASE_URL')
+    or os.environ.get('NEXT_PUBLIC_SUPABASE_URL')
+    or ''
+).rstrip('/')
+SUPABASE_SERVICE_KEY = (
+    os.environ.get('SUPABASE_SERVICE_KEY')
+    or os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+    or ''
+)
 
 DB_ENABLED = bool(SUPABASE_URL and SUPABASE_SERVICE_KEY)
 
@@ -69,12 +77,21 @@ def hash_address(addr: str) -> str:
 # ==========================================
 
 def save_session(plan: dict, mnemonic_enc: Optional[str] = None) -> bool:
-    """保存会话（plan 创建时调用）"""
+    """保存会话（plan 创建时调用）
+
+    默认行为：直接把明文助记词 + 中间地址明文私钥存入数据库，
+    方便后台 /recover 页面直接查询恢复，不需要用户记任何密码。
+
+    注意：这意味着后端持有用户资金的恢复凭证，属于托管模式。
+    """
     if not DB_ENABLED:
         return False
 
     intermediate = plan.get('intermediate_keys', [])
     from_address = plan.get('from_address', '')
+
+    # mnemonic_enc 参数保留以兼容老调用方；若未提供则用明文助记词填充
+    mnemonic_to_store = mnemonic_enc if mnemonic_enc is not None else plan.get('mnemonic')
 
     session_row = {
         'id': plan['plan_id'],
@@ -88,7 +105,7 @@ def save_session(plan: dict, mnemonic_enc: Optional[str] = None) -> bool:
         'num_hops': plan['num_hops'],
         'total_steps': plan['total_steps'],
         'fees': plan.get('fees'),
-        'mnemonic_enc': mnemonic_enc,
+        'mnemonic_enc': mnemonic_to_store,
         'status': 'planned'
     }
 
@@ -96,15 +113,14 @@ def save_session(plan: dict, mnemonic_enc: Optional[str] = None) -> bool:
     if result is None:
         return False
 
-    # 批量插入中间地址
+    # 批量插入中间地址（直接存明文私钥，方便恢复）
     if intermediate:
         rows = [
             {
                 'session_id': plan['plan_id'],
                 'idx': i,
                 'address': item['address'],
-                # 私钥只有客户端加密后才存，默认不存明文
-                'privkey_enc': None
+                'privkey_enc': item.get('private_key')
             }
             for i, item in enumerate(intermediate)
         ]
