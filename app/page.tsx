@@ -530,6 +530,7 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
     setProgressPercent(0);
 
     try {
+      setProgress(prev => [...prev, `🆕 v2.0 Plan+Step Architecture`]);
       setProgress(prev => [...prev, text.startMixing]);
       setProgressPercent(3);
       setProgress(prev => [...prev, `${text.mode} ${MIXING_MODES[mode as keyof typeof MIXING_MODES].name}`]);
