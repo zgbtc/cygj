@@ -552,78 +552,209 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
       // 直接调用 /api/mixer，一次性完成所有跨链
       // ==========================================
       if (mode === 'ultimate') {
-        const pathMap: Record<string, string[]> = {
-          simple: ['BSC', 'Polygon', 'BSC'],
-          standard: ['BSC', 'Polygon', 'Arbitrum', 'BSC'],
-          complex: ['BSC', 'Polygon', 'Arbitrum', 'Optimism', 'BSC']
-        };
-        const currentPath = pathMap[pathType];
-        
-        setProgress(prev => [...prev, `🌉 ${lang === 'en' ? 'Real cross-chain mixing' : '真实跨链混币'}`]);
-        setProgress(prev => [...prev, `📍 ${lang === 'en' ? 'Path' : '路径'}: ${currentPath.join(' → ')}`]);
-        setProgress(prev => [...prev, `🔢 ${lang === 'en' ? 'Cross-chain hops' : '跨链次数'}: ${currentPath.length - 1}`]);
+        // ==========================================
+        // Ultimate Privacy：XMR 路由（BNB → XMR → BNB）
+        // 金额自动打碎 + 多服务商 + 时间打散
+        // ==========================================
+        setProgress(prev => [...prev, `🕵️ ${lang === 'en' ? 'XMR Ghost Route activated' : 'XMR 幽灵路由启动'}`]);
+        setProgress(prev => [...prev, `🔀 ${lang === 'en' ? 'Auto-splitting amount for maximum privacy...' : '自动拆分金额，最大化隐私...'}`]);
         setProgressPercent(10);
 
-        const ultimateBody: any = {
-          chain,
-          mode: 'ultimate',
-          path_type: pathType,
-          input_type: inputType,
-          to_address: toAddress,
-          total_amount: parseFloat(amount),
-          num_hops: numHops,
-          gas_level: 'standard'
-        };
-        if (inputType === 'mnemonic') {
-          ultimateBody.from_mnemonic = inputValue;
-        } else {
-          ultimateBody.from_private_key = inputValue;
+        // Step 1: 获取源地址
+        const { ethers } = await import('ethers');
+        let fromAddress = '';
+        try {
+          if (inputType === 'mnemonic') {
+            const wallet = ethers.HDNodeWallet.fromMnemonic(
+              ethers.Mnemonic.fromPhrase(inputValue)
+            );
+            fromAddress = wallet.address;
+          } else {
+            const wallet = new ethers.Wallet(inputValue);
+            fromAddress = wallet.address;
+          }
+        } catch {
+          throw new Error(lang === 'en' ? 'Invalid private key or mnemonic' : '无效的私钥或助记词');
         }
 
-        setProgress(prev => [...prev, `🚀 ${lang === 'en' ? 'Submitting cross-chain request...' : '提交跨链请求...'}`]);
-        setProgressPercent(15);
-
-        const ultResp = await fetch(`${API_URL}/api/mixer`, {
+        // Step 2: 规划 XMR 路由
+        const planResp2 = await fetch(`${API_URL}/api/xmr_router`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(ultimateBody)
+          body: JSON.stringify({
+            action: 'plan',
+            from_address: fromAddress,
+            to_address: toAddress,
+            total_amount: parseFloat(amount),
+          })
         });
-        const ultData = await ultResp.json();
-
-        if (ultData.success) {
-          setProgressPercent(95);
-          setProgress(prev => [...prev, `\n✅ ${lang === 'en' ? 'Multi-chain mixing completed!' : '多链混币完成！'}`]);
-          
-          // 显示每个跨链步骤
-          (ultData.steps || []).forEach((s: any, i: number) => {
-            const icon = s.status === 'success' ? '✅' : '❌';
-            const fromChain = s.from_chain?.toUpperCase() || '';
-            const toChain = s.to_chain?.toUpperCase() || '';
-            const amtIn = (s.amount || 0).toFixed(6);
-            const amtOut = (s.amount_received || 0).toFixed(6);
-            const txShort = s.tx_hash ? `${s.tx_hash.slice(0, 10)}...` : '';
-            setProgress(prev => [...prev, `${icon} [${i + 1}/${ultData.steps.length}] 🌉 ${fromChain} → ${toChain} | ${amtIn} → ${amtOut} | ${txShort} (${s.tool || ''}, ${s.duration || 0}s)`]);
-          });
-
-          setProgress(prev => [...prev, `\n🎯 ${lang === 'en' ? 'Final amount' : '最终到账'}: ${(ultData.final_amount || 0).toFixed(6)} BNB`]);
-          setProgress(prev => [...prev, `📬 ${lang === 'en' ? 'Target address' : '目标地址'}: ${ultData.target_address || toAddress}`]);
-          setProgress(prev => [...prev, `🆔 Session ID: ${ultData.session_id || ''}`]);
-          setProgressPercent(100);
-
-          setResult({
-            success: true,
-            mode: 'ultimate',
-            total_transactions: ultData.steps?.length || 0,
-            success_count: ultData.success_count || 0,
-            failed_count: ultData.failed_count || 0,
-            results: ultData.steps,
-            session_id: ultData.session_id,
-            final_amount: ultData.final_amount,
-            path: ultData.path
-          });
-        } else {
-          throw new Error(ultData.error || 'Ultimate privacy mixing failed');
+        const planData2 = await planResp2.json();
+        if (!planData2.success) {
+          throw new Error(planData2.error || 'XMR route planning failed');
         }
+        const route = planData2.route;
+        setProgress(prev => [...prev, `📋 ${lang === 'en' ? `Route planned: ${route.num_splits} splits` : `路由规划完成：${route.num_splits} 笔拆分`}`]);
+        setProgress(prev => [...prev, `🏦 ${lang === 'en' ? `Providers: ${route.available_providers.join(', ')}` : `服务商：${route.available_providers.join(', ')}`}`]);
+        setProgressPercent(15);
+
+        // Step 3: 逐笔执行（每笔：BNB→XMR 创建订单 → 发 BNB → 等待 → XMR→BNB 创建订单）
+        const legResults: any[] = [];
+        for (let i = 0; i < route.legs.length; i++) {
+          const leg = route.legs[i];
+          setProgress(prev => [...prev, `\n💸 [${i + 1}/${route.legs.length}] ${lang === 'en' ? 'Processing split' : '处理第'} ${i + 1} ${lang === 'en' ? '' : '笔'}: ${leg.amount_bnb.toFixed(6)} BNB`]);
+
+          // 延迟（打散时间关联）
+          if (leg.delay_seconds > 0) {
+            setProgress(prev => [...prev, `⏳ ${lang === 'en' ? `Waiting ${leg.delay_seconds}s to break time correlation...` : `等待 ${leg.delay_seconds}s 打散时间关联...`}`]);
+            await new Promise(res => setTimeout(res, leg.delay_seconds * 1000));
+          }
+
+          try {
+            // 3a: 创建 BNB→XMR 订单（获取 XMR 收款地址）
+            // 注意：XMR 地址由服务商生成，我们不需要自己的 XMR 钱包
+            // 出腿的 XMR→BNB 订单先创建，拿到 XMR 收款地址，再作为入腿的目标
+            setProgress(prev => [...prev, `   🔄 ${lang === 'en' ? 'Creating XMR→BNB order...' : '创建 XMR→BNB 订单...'}`]);
+            const outOrderResp = await fetch(`${API_URL}/api/xmr_router`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'create_leg',
+                provider_id: leg.out_provider,
+                from_currency: 'xmr',
+                to_currency: 'bnb',
+                amount: leg.amount_bnb * 0.97, // 估算 XMR 金额（扣 3% 手续费）
+                address: toAddress,
+                from_network: '',
+                to_network: 'bsc',
+              })
+            });
+            const outOrderData = await outOrderResp.json();
+            if (!outOrderData.success) throw new Error(outOrderData.error);
+            const outOrder = outOrderData.order;
+            const xmrReceiveAddress = outOrder.payin_address;
+            setProgress(prev => [...prev, `   ✅ XMR→BNB ${lang === 'en' ? 'order created' : '订单已创建'} (${leg.out_provider})`]);
+            setProgress(prev => [...prev, `   📬 XMR ${lang === 'en' ? 'receive address' : '收款地址'}: ${xmrReceiveAddress.slice(0, 20)}...`]);
+
+            // 3b: 创建 BNB→XMR 订单（目标地址 = 上面的 XMR 地址）
+            setProgress(prev => [...prev, `   🔄 ${lang === 'en' ? 'Creating BNB→XMR order...' : '创建 BNB→XMR 订单...'}`]);
+            const inOrderResp = await fetch(`${API_URL}/api/xmr_router`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'create_leg',
+                provider_id: leg.in_provider,
+                from_currency: 'bnb',
+                to_currency: 'xmr',
+                amount: leg.amount_bnb,
+                address: xmrReceiveAddress,
+                from_network: 'bsc',
+                to_network: '',
+              })
+            });
+            const inOrderData = await inOrderResp.json();
+            if (!inOrderData.success) throw new Error(inOrderData.error);
+            const inOrder = inOrderData.order;
+            setProgress(prev => [...prev, `   ✅ BNB→XMR ${lang === 'en' ? 'order created' : '订单已创建'} (${leg.in_provider})`]);
+            setProgress(prev => [...prev, `   💳 ${lang === 'en' ? 'Send' : '请发送'} ${leg.amount_bnb.toFixed(6)} BNB ${lang === 'en' ? 'to' : '到'}: ${inOrder.payin_address.slice(0, 20)}...`]);
+
+            // 3c: 发送 BNB 到服务商收款地址
+            setProgress(prev => [...prev, `   🚀 ${lang === 'en' ? 'Sending BNB...' : '发送 BNB...'}`]);
+            const provider = new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org');
+            let signer;
+            if (inputType === 'mnemonic') {
+              signer = ethers.HDNodeWallet.fromMnemonic(
+                ethers.Mnemonic.fromPhrase(inputValue)
+              ).connect(provider);
+            } else {
+              signer = new ethers.Wallet(inputValue, provider);
+            }
+            const amountWei = ethers.parseEther(leg.amount_bnb.toFixed(6));
+            const tx = await signer.sendTransaction({
+              to: inOrder.payin_address,
+              value: amountWei,
+            });
+            setProgress(prev => [...prev, `   ✅ BNB ${lang === 'en' ? 'sent' : '已发送'}: ${tx.hash.slice(0, 16)}...`]);
+            await tx.wait(1);
+            setProgress(prev => [...prev, `   ⛓️ ${lang === 'en' ? 'Confirmed on BSC' : 'BSC 已确认'}`]);
+
+            // 3d: 轮询 BNB→XMR 订单状态（最多等 30 分钟）
+            setProgress(prev => [...prev, `   ⏳ ${lang === 'en' ? 'Waiting for XMR conversion...' : '等待 XMR 兑换...'}`]);
+            let inStatus = 'waiting';
+            const inDeadline = Date.now() + 30 * 60 * 1000;
+            while (Date.now() < inDeadline && !['finished', 'failed', 'refunded'].includes(inStatus)) {
+              await new Promise(res => setTimeout(res, 15000));
+              try {
+                const stResp = await fetch(`${API_URL}/api/xmr_router`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'status', provider_id: leg.in_provider, order_id: inOrder.order_id })
+                });
+                const stData = await stResp.json();
+                inStatus = stData.status || 'waiting';
+                setProgress(prev => {
+                  const last = prev[prev.length - 1];
+                  const newLine = `   ⏳ BNB→XMR: ${inStatus}`;
+                  return last.startsWith('   ⏳ BNB→XMR:') ? [...prev.slice(0, -1), newLine] : [...prev, newLine];
+                });
+              } catch { /* 忽略轮询错误 */ }
+            }
+
+            if (inStatus === 'finished') {
+              setProgress(prev => [...prev, `   ✅ ${lang === 'en' ? 'XMR received! Waiting for BNB output...' : 'XMR 已到账！等待 BNB 输出...'}`]);
+              // 轮询 XMR→BNB 订单
+              let outStatus = 'waiting';
+              const outDeadline = Date.now() + 30 * 60 * 1000;
+              while (Date.now() < outDeadline && !['finished', 'failed', 'refunded'].includes(outStatus)) {
+                await new Promise(res => setTimeout(res, 15000));
+                try {
+                  const stResp = await fetch(`${API_URL}/api/xmr_router`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'status', provider_id: leg.out_provider, order_id: outOrder.order_id })
+                  });
+                  const stData = await stResp.json();
+                  outStatus = stData.status || 'waiting';
+                  setProgress(prev => {
+                    const last = prev[prev.length - 1];
+                    const newLine = `   ⏳ XMR→BNB: ${outStatus}`;
+                    return last.startsWith('   ⏳ XMR→BNB:') ? [...prev.slice(0, -1), newLine] : [...prev, newLine];
+                  });
+                } catch { /* 忽略 */ }
+              }
+              if (outStatus === 'finished') {
+                setProgress(prev => [...prev, `   🎉 ${lang === 'en' ? `Split ${i + 1} complete!` : `第 ${i + 1} 笔完成！`}`]);
+                legResults.push({ leg_idx: i, status: 'success', in_order: inOrder, out_order: outOrder });
+              } else {
+                setProgress(prev => [...prev, `   ⚠️ XMR→BNB ${lang === 'en' ? `status: ${outStatus}` : `状态: ${outStatus}`}`]);
+                legResults.push({ leg_idx: i, status: outStatus, in_order: inOrder, out_order: outOrder });
+              }
+            } else {
+              setProgress(prev => [...prev, `   ⚠️ BNB→XMR ${lang === 'en' ? `status: ${inStatus}` : `状态: ${inStatus}`}`]);
+              legResults.push({ leg_idx: i, status: inStatus, in_order: inOrder, out_order: outOrder });
+            }
+          } catch (legErr) {
+            setProgress(prev => [...prev, `   ❌ ${lang === 'en' ? `Split ${i + 1} failed` : `第 ${i + 1} 笔失败`}: ${legErr}`]);
+            legResults.push({ leg_idx: i, status: 'failed', error: String(legErr) });
+          }
+
+          setProgressPercent(15 + Math.floor(((i + 1) / route.legs.length) * 80));
+        }
+
+        const successLegs = legResults.filter(l => l.status === 'finished' || l.status === 'success').length;
+        setProgress(prev => [...prev, `\n🎉 ${lang === 'en' ? 'XMR Ghost Route complete!' : 'XMR 幽灵路由完成！'}`]);
+        setProgress(prev => [...prev, `✅ ${lang === 'en' ? `${successLegs}/${route.legs.length} splits delivered` : `${successLegs}/${route.legs.length} 笔已到账`}`]);
+        setProgress(prev => [...prev, `🔒 ${lang === 'en' ? 'Source address is untraceable via XMR black hole' : '源地址通过 XMR 黑洞完全隐匿'}`]);
+        setProgressPercent(100);
+
+        setResult({
+          success: successLegs > 0,
+          mode: 'ultimate',
+          total_transactions: route.legs.length,
+          success_count: successLegs,
+          failed_count: route.legs.length - successLegs,
+          results: legResults,
+          route_id: route.route_id,
+        });
         return;
       }
 
@@ -756,6 +887,13 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             const fromAddr = r.from ? `${r.from.slice(0, 6)}...${r.from.slice(-4)}` : '';
             const toAddr = r.to ? `${r.to.slice(0, 6)}...${r.to.slice(-4)}` : '';
             const txShort = r.tx_hash ? `${r.tx_hash.slice(0, 10)}...` : '';
+            if (r.early_exit) {
+              setProgress(prev => [...prev, `⚡ [${stepIdx + 1}/${totalSteps}] Gas budget low — routed directly to target ${toAddr} (${r.amount.toFixed(6)}) ${txShort}`]);
+              setProgress(prev => [...prev, `✅ Funds safely delivered. Stopping early.`]);
+              successCount++;
+              stepResults.push({ ...s, result: r, status: 'success' });
+              break; // 软退出，停止后续步骤
+            }
             setProgress(prev => [...prev, `✅ [${stepIdx + 1}/${totalSteps}] ${fromAddr} → ${toAddr} (${r.amount.toFixed(6)}) ${txShort}`]);
           }
         } else {
