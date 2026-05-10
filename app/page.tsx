@@ -616,23 +616,17 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? `Delay ${delay}s...` : `延迟 ${delay}s...`}`]);
             await new Promise(r => setTimeout(r, delay * 1000));
           }
-          setProgress(prev => [...prev, `\n💸 [${idx + 1}/${route.num_legs}] ${leg.amount_bnb.toFixed(6)} BNB → ${leg.relay_chain.toUpperCase()} USDC`]);
+          setProgress(prev => [...prev, `\n💸 [${idx + 1}/${route.num_legs}] ${leg.amount_bnb.toFixed(6)} BNB → ${leg.relay_chain.toUpperCase()} POL`]);
 
           // 使用后端派生的中继地址（固定助记词，不是 createRandom）
           const relayAddress = leg.relay_address;
           const relayPrivateKey = leg.relay_private_key;
-          const relayProvider = new ethers.JsonRpcProvider(
-            leg.relay_chain === 'arbitrum' ? 'https://arb1.arbitrum.io/rpc' :
-            leg.relay_chain === 'polygon'  ? 'https://polygon-bor-rpc.publicnode.com' :
-            leg.relay_chain === 'base'     ? 'https://mainnet.base.org' :
-            leg.relay_chain === 'optimism' ? 'https://mainnet.optimism.io' :
-            'https://arb1.arbitrum.io/rpc'
-          );
+          const relayProvider = new ethers.JsonRpcProvider('https://polygon-bor-rpc.publicnode.com');
           const relaySigner = new ethers.Wallet(relayPrivateKey, relayProvider);
 
-          // ═══ 第一跳：BSC BNB → 中继链 USDC @ relayAddress ═══
+          // ═══ 第一跳：BSC BNB → Polygon POL @ relayAddress ═══
           const amountWei = ethers.parseEther(leg.amount_bnb.toFixed(6)).toString();
-          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote hop 1...' : '报价第一跳...'}`]);
+          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote hop 1: BSC BNB → Polygon POL' : '报价第一跳：BSC BNB → Polygon POL'}`]);
 
           const q1Resp = await fetch(`${API_URL}/api/dex_mixer`, {
             method: 'POST',
@@ -642,7 +636,7 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
               from_chain: 56,
               to_chain: leg.relay_chain_id,
               from_token: '0x0000000000000000000000000000000000000000',
-              to_token: leg.relay_usdc_addr,
+              to_token: '0x0000000000000000000000000000000000000000',
               from_amount: amountWei,
               from_address: fromAddress,
               to_address: relayAddress,
@@ -684,21 +678,24 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             } catch {}
           }
           if (hop1Status !== 'DONE') throw new Error(`Hop1 not done: ${hop1Status}`);
-          setProgress(prev => [...prev, `   ✅ [${idx + 1}] ${lang === 'en' ? 'USDC arrived on ' + leg.relay_chain.toUpperCase() : 'USDC 到达 ' + leg.relay_chain.toUpperCase()}`]);
+          setProgress(prev => [...prev, `   ✅ [${idx + 1}] ${lang === 'en' ? 'POL arrived on Polygon' : 'POL 到达 Polygon'}`]);
 
-          // 查中继地址 USDC 余额
-          const erc20Abi = ['function balanceOf(address) view returns (uint256)', 'function approve(address,uint256) returns (bool)'];
-          const usdcContract = new ethers.Contract(leg.relay_usdc_addr, erc20Abi, relayProvider);
-          let usdcBalance = BigInt(0);
+          // 查中继地址 POL 余额（原生币，不需要 ERC20 查询）
+          let nativeBalance = BigInt(0);
           for (let t = 0; t < 15; t++) {
-            usdcBalance = await usdcContract.balanceOf(relayAddress);
-            if (usdcBalance > BigInt(0)) break;
+            nativeBalance = await relayProvider.getBalance(relayAddress);
+            if (nativeBalance > BigInt(0)) break;
             await new Promise(r => setTimeout(r, 3000));
           }
-          if (usdcBalance === BigInt(0)) throw new Error('Relay USDC balance = 0');
+          if (nativeBalance === BigInt(0)) throw new Error('Relay POL balance = 0');
 
-          // ═══ 第二跳：中继链 USDC → BSC BNB @ target ═══
-          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote hop 2 (gasless)...' : '报价第二跳 (gasless)...'}`]);
+          // ═══ 第二跳：Polygon POL → BSC BNB @ target（不需要 approve！）═══
+          // 预留 gas 费（Polygon gas 极便宜，预留 0.005 POL 足够）
+          const gasReserve = ethers.parseEther('0.005');
+          const sendAmount = nativeBalance - gasReserve;
+          if (sendAmount <= BigInt(0)) throw new Error('POL balance too low after gas reserve');
+
+          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote hop 2: Polygon POL → BSC BNB' : '报价第二跳：Polygon POL → BSC BNB'}`]);
           const q2Resp = await fetch(`${API_URL}/api/dex_mixer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -706,9 +703,9 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
               action: 'quote',
               from_chain: leg.relay_chain_id,
               to_chain: 56,
-              from_token: leg.relay_usdc_addr,
+              from_token: '0x0000000000000000000000000000000000000000',
               to_token: '0x0000000000000000000000000000000000000000',
-              from_amount: usdcBalance.toString(),
+              from_amount: sendAmount.toString(),
               from_address: relayAddress,
               to_address: toAddress,
               slippage: 0.03,
@@ -719,15 +716,6 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
           const quote2 = q2Data.quote;
           const txReq2 = quote2.transactionRequest;
           if (!txReq2) throw new Error('Hop2: no transactionRequest');
-
-          // Approve USDC（如果需要）
-          const approvalAddr = quote2.estimate?.approvalAddress;
-          if (approvalAddr) {
-            setProgress(prev => [...prev, `   🔓 [${idx + 1}] ${lang === 'en' ? 'Approving USDC...' : '授权 USDC...'}`]);
-            const tokenSigner = new ethers.Contract(leg.relay_usdc_addr, erc20Abi, relaySigner);
-            const appTx = await tokenSigner.approve(approvalAddr, usdcBalance);
-            await appTx.wait(1);
-          }
 
           // 发送第二跳
           setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending relay tx...' : '发送中继交易...'}`]);

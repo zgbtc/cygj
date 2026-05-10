@@ -35,17 +35,13 @@ logger = logging.getLogger(__name__)
 
 LIFI_API = "https://li.quest/v1"
 
-# 中继链候选
-RELAY_CHAINS = [
-    {'id': 'arbitrum', 'chain_id': 42161, 'native': 'ETH',
-     'usdc_addr': '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'},
-    {'id': 'polygon',  'chain_id': 137,   'native': 'POL',
-     'usdc_addr': '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'},
-    {'id': 'base',     'chain_id': 8453,  'native': 'ETH',
-     'usdc_addr': '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'},
-    {'id': 'optimism', 'chain_id': 10,    'native': 'ETH',
-     'usdc_addr': '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'},
-]
+# 中继链：固定用 Polygon（gas 最便宜，POL 就是 gas 币）
+RELAY_CHAIN = {
+    'id': 'polygon',
+    'chain_id': 137,
+    'native': 'POL',
+    'native_token': '0x0000000000000000000000000000000000000000',  # 原生币
+}
 
 BSC_CHAIN_ID = 56
 NATIVE_TOKEN = '0x0000000000000000000000000000000000000000'
@@ -160,18 +156,15 @@ def build_plan(from_address: str, to_address: str, total_amount: float) -> dict:
 
     legs = []
     for i, amt in enumerate(amounts):
-        relay = random.choice(RELAY_CHAINS)
         delay_seconds = 0 if i == 0 else random.randint(5, 30)
-
-        # 为每笔派生一个独立的中继地址
         relay_addr = derive_relay_address(base_index + i)
 
         legs.append({
             'leg_idx': i,
             'amount_bnb': amt,
-            'relay_chain': relay['id'],
-            'relay_chain_id': relay['chain_id'],
-            'relay_usdc_addr': relay['usdc_addr'],
+            'relay_chain': RELAY_CHAIN['id'],
+            'relay_chain_id': RELAY_CHAIN['chain_id'],
+            'relay_native_token': RELAY_CHAIN['native_token'],
             'relay_address': relay_addr['address'],
             'relay_private_key': relay_addr['private_key'],
             'relay_index': relay_addr['index'],
