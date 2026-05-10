@@ -1196,26 +1196,40 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
         </div>
       </div>
       ) : (
-      <div className="bg-[#0a0a0a] border border-[#d4af37]/20 p-4 rounded-lg mb-4">
-        <div className="flex items-center justify-between text-sm">
+      <div className="bg-[#0a0a0a] border border-[#d4af37]/30 p-4 rounded-lg mb-4 shadow-lg shadow-[#d4af37]/10">
+        <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-gray-400 text-xs">{lang === 'en' ? 'Service Fee' : '服务费'}</p>
+            <p className="text-gray-400 text-xs">{text.donation}</p>
             <p className="font-semibold text-[#d4af37]">
               {amount && parseFloat(amount) > 0 ? (() => {
                 const a = parseFloat(amount);
-                const rate = a < 1 ? 4.9 : a < 10 ? 4.1 : a < 100 ? 3.1 : 2.7;
-                return `${rate}% (${(a * rate / 100).toFixed(5)} BNB)`;
-              })() : '—'}
+                const rate = a < 1 ? 0.049 : a < 10 ? 0.041 : a < 100 ? 0.031 : 0.027;
+                return `${(a * rate).toFixed(5)} BNB`;
+              })() : '0.00000 BNB'}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-gray-400 text-xs">{lang === 'en' ? 'Est. Receive' : '预计到账'}</p>
+          <div>
+            <p className="text-gray-400 text-xs">{text.estGas}</p>
+            <p className="font-semibold text-[#d4af37]">~0.00150 BNB</p>
+          </div>
+          <div>
+            <p className="text-gray-400 text-xs">{text.totalFee}</p>
+            <p className="font-semibold text-[#d4af37]">
+              {amount && parseFloat(amount) > 0 ? (() => {
+                const a = parseFloat(amount);
+                const rate = a < 1 ? 0.049 : a < 10 ? 0.041 : a < 100 ? 0.031 : 0.027;
+                return `~${(a * rate + 0.0015).toFixed(5)} BNB`;
+              })() : '~0.00000 BNB'}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-400 text-xs">{text.expectedReceive}</p>
             <p className="font-semibold text-[#10b981]">
               {amount && parseFloat(amount) > 0 ? (() => {
                 const a = parseFloat(amount);
                 const rate = a < 1 ? 0.049 : a < 10 ? 0.041 : a < 100 ? 0.031 : 0.027;
-                return `≈ ${(a * (1 - rate) * 0.995).toFixed(5)} BNB`;
-              })() : '—'}
+                return `${(a * (1 - rate) - 0.0015).toFixed(5)} BNB`;
+              })() : '0.00000 BNB'}
             </p>
           </div>
         </div>
