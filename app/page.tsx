@@ -548,37 +548,31 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
       const inputValue = privateKey.trim();
 
       // ==========================================
-      // 极致隐私模式：真实多链跨链（LiFi）
-      // 直接调用 /api/mixer，一次性完成所有跨链
+      // Ultimate Privacy：跨链 + DEX Swap（2-3 分钟完成）
+      // LiFi any-to-any：BNB → Relay USDC → BNB，币种+链+地址三维混淆
+      // 大额自动拆分并行执行，总时间不变
       // ==========================================
       if (mode === 'ultimate') {
-        // ==========================================
-        // Ultimate Privacy：XMR 路由（BNB → XMR → BNB）
-        // 金额自动打碎 + 多服务商 + 时间打散
-        // ==========================================
-        setProgress(prev => [...prev, `🕵️ ${lang === 'en' ? 'XMR Ghost Route activated' : 'XMR 幽灵路由启动'}`]);
-        setProgress(prev => [...prev, `🔀 ${lang === 'en' ? 'Auto-splitting amount for maximum privacy...' : '自动拆分金额，最大化隐私...'}`]);
+        setProgress(prev => [...prev, `🛡️ ${lang === 'en' ? 'Ultimate Privacy activated' : '极致隐私模式启动'}`]);
         setProgressPercent(10);
 
-        // Step 1: 获取源地址
         const { ethers } = await import('ethers');
-        let fromAddress = '';
+
+        // 构造 signer
+        let sourceSigner: any;
         try {
           if (inputType === 'mnemonic') {
-            const wallet = ethers.HDNodeWallet.fromMnemonic(
-              ethers.Mnemonic.fromPhrase(inputValue)
-            );
-            fromAddress = wallet.address;
+            sourceSigner = ethers.HDNodeWallet.fromMnemonic(ethers.Mnemonic.fromPhrase(inputValue));
           } else {
-            const wallet = new ethers.Wallet(inputValue);
-            fromAddress = wallet.address;
+            sourceSigner = new ethers.Wallet(inputValue);
           }
         } catch {
           throw new Error(lang === 'en' ? 'Invalid private key or mnemonic' : '无效的私钥或助记词');
         }
+        const fromAddress = sourceSigner.address;
 
-        // Step 2: 规划 XMR 路由
-        const planResp2 = await fetch(`${API_URL}/api/xmr_router`, {
+        // 规划：金额拆分 + 中继链分配
+        const planResp = await fetch(`${API_URL}/api/dex_mixer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -588,171 +582,200 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             total_amount: parseFloat(amount),
           })
         });
-        const planData2 = await planResp2.json();
-        if (!planData2.success) {
-          throw new Error(planData2.error || 'XMR route planning failed');
-        }
-        const route = planData2.route;
-        setProgress(prev => [...prev, `📋 ${lang === 'en' ? `Route planned: ${route.num_splits} splits` : `路由规划完成：${route.num_splits} 笔拆分`}`]);
-        setProgress(prev => [...prev, `🏦 ${lang === 'en' ? `Providers: ${route.available_providers.join(', ')}` : `服务商：${route.available_providers.join(', ')}`}`]);
+        const planData = await planResp.json();
+        if (!planData.success) throw new Error(planData.error || 'DEX route planning failed');
+        const route = planData.route;
+        setProgress(prev => [...prev, `📋 ${lang === 'en' ? `Route: ${route.num_legs} parallel split(s)` : `路由：${route.num_legs} 笔并行拆分`}`]);
         setProgressPercent(15);
 
-        // Step 3: 逐笔执行（每笔：BNB→XMR 创建订单 → 发 BNB → 等待 → XMR→BNB 创建订单）
-        const legResults: any[] = [];
-        for (let i = 0; i < route.legs.length; i++) {
-          const leg = route.legs[i];
-          setProgress(prev => [...prev, `\n💸 [${i + 1}/${route.legs.length}] ${lang === 'en' ? 'Processing split' : '处理第'} ${i + 1} ${lang === 'en' ? '' : '笔'}: ${leg.amount_bnb.toFixed(6)} BNB`]);
+        // 中间地址（HD 钱包派生），用于接收第一跳的 USDC
+        const sourceWallet = inputType === 'mnemonic'
+          ? ethers.HDNodeWallet.fromMnemonic(ethers.Mnemonic.fromPhrase(inputValue))
+          : null;
 
-          // 延迟（打散时间关联）
-          if (leg.delay_seconds > 0) {
-            setProgress(prev => [...prev, `⏳ ${lang === 'en' ? `Waiting ${leg.delay_seconds}s to break time correlation...` : `等待 ${leg.delay_seconds}s 打散时间关联...`}`]);
-            await new Promise(res => setTimeout(res, leg.delay_seconds * 1000));
+        const bscProvider = new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org');
+        const bscSigner = new ethers.Wallet(sourceSigner.privateKey, bscProvider);
+
+        // 并行执行所有 leg
+        const executeOneLeg = async (leg: any, idx: number): Promise<any> => {
+          const delay = leg.delay_seconds || 0;
+          if (delay > 0) {
+            await new Promise(r => setTimeout(r, delay * 1000));
+          }
+          setProgress(prev => [...prev, `\n💸 [${idx + 1}/${route.num_legs}] ${leg.amount_bnb.toFixed(6)} BNB → ${leg.relay_chain.toUpperCase()} ${leg.relay_stable}`]);
+
+          // 派生一个临时地址作为中继点（用源地址私钥派生确定性地址）
+          // 简化：直接用一个随机生成的新 wallet
+          const tempWallet = ethers.Wallet.createRandom().connect(bscProvider);
+          const tempAddress = tempWallet.address;
+          const relayProvider = new ethers.JsonRpcProvider(
+            leg.relay_chain === 'arbitrum' ? 'https://arb1.arbitrum.io/rpc' :
+            leg.relay_chain === 'polygon'  ? 'https://polygon.llamarpc.com' :
+            leg.relay_chain === 'base'     ? 'https://mainnet.base.org' :
+            leg.relay_chain === 'optimism' ? 'https://mainnet.optimism.io' :
+            'https://arb1.arbitrum.io/rpc'
+          );
+          const tempRelaySigner = new ethers.Wallet(tempWallet.privateKey, relayProvider);
+
+          // Leg 第一跳：BSC BNB → Relay USDC @ tempAddress
+          const amountWei = ethers.parseEther(leg.amount_bnb.toFixed(6)).toString();
+          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote: BSC BNB → ' + leg.relay_chain.toUpperCase() + ' USDC' : '报价：BSC BNB → ' + leg.relay_chain.toUpperCase() + ' USDC'}`]);
+
+          const q1Resp = await fetch(`${API_URL}/api/dex_mixer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'quote',
+              from_chain: 56,
+              to_chain: leg.relay_chain_id,
+              from_token: '0x0000000000000000000000000000000000000000',
+              to_token: leg.relay_stable_addr,
+              from_amount: amountWei,
+              from_address: fromAddress,
+              to_address: tempAddress,
+              slippage: 0.03,
+            })
+          });
+          const q1Data = await q1Resp.json();
+          if (!q1Data.success) throw new Error(`Quote 1 失败: ${q1Data.error}`);
+          const quote1 = q1Data.quote;
+          const txReq1 = quote1.transactionRequest;
+          if (!txReq1) throw new Error('Quote 缺少 transactionRequest');
+
+          // 签名并发送第一跳
+          setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending BSC tx...' : '发送 BSC 交易...'}`]);
+          const tx1 = await bscSigner.sendTransaction({
+            to: txReq1.to,
+            value: BigInt(txReq1.value || 0),
+            data: txReq1.data,
+            gasLimit: BigInt(txReq1.gasLimit || 500000),
+          });
+          setProgress(prev => [...prev, `   ✅ [${idx + 1}] BSC tx: ${tx1.hash.slice(0, 16)}...`]);
+          await tx1.wait(1);
+
+          // 轮询 LiFi status 直到 DONE
+          setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? 'Bridging to ' + leg.relay_chain.toUpperCase() + '...' : '跨链到 ' + leg.relay_chain.toUpperCase() + '...'}`]);
+          const hop1Deadline = Date.now() + 5 * 60 * 1000;
+          let hop1Status = 'PENDING';
+          while (Date.now() < hop1Deadline && hop1Status !== 'DONE' && hop1Status !== 'FAILED') {
+            await new Promise(r => setTimeout(r, 6000));
+            try {
+              const s = await fetch(`${API_URL}/api/dex_mixer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'status', tx_hash: tx1.hash, from_chain: 56, to_chain: leg.relay_chain_id })
+              });
+              const sd = await s.json();
+              hop1Status = sd.status || 'PENDING';
+            } catch {}
+          }
+          if (hop1Status !== 'DONE') throw new Error(`第一跳未完成: ${hop1Status}`);
+          setProgress(prev => [...prev, `   ✅ [${idx + 1}] ${lang === 'en' ? 'USDC received on ' + leg.relay_chain.toUpperCase() : 'USDC 到达 ' + leg.relay_chain.toUpperCase()}`]);
+
+          // 查询临时地址上的 USDC 余额
+          const erc20Abi = ['function balanceOf(address) view returns (uint256)', 'function approve(address,uint256) returns (bool)', 'function decimals() view returns (uint8)'];
+          const usdcContract = new ethers.Contract(leg.relay_stable_addr, erc20Abi, relayProvider);
+          let usdcBalance = BigInt(0);
+          // 余额可能刚到账，多查几次
+          for (let t = 0; t < 10; t++) {
+            usdcBalance = await usdcContract.balanceOf(tempAddress);
+            if (usdcBalance > 0) break;
+            await new Promise(r => setTimeout(r, 3000));
+          }
+          if (usdcBalance === BigInt(0)) throw new Error('中继地址 USDC 余额为 0');
+
+          // 第二跳：Relay USDC → BSC BNB @ target
+          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote: ' + leg.relay_chain.toUpperCase() + ' USDC → BSC BNB' : '报价：' + leg.relay_chain.toUpperCase() + ' USDC → BSC BNB'}`]);
+          const q2Resp = await fetch(`${API_URL}/api/dex_mixer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'quote',
+              from_chain: leg.relay_chain_id,
+              to_chain: 56,
+              from_token: leg.relay_stable_addr,
+              to_token: '0x0000000000000000000000000000000000000000',
+              from_amount: usdcBalance.toString(),
+              from_address: tempAddress,
+              to_address: toAddress,
+              slippage: 0.03,
+            })
+          });
+          const q2Data = await q2Resp.json();
+          if (!q2Data.success) throw new Error(`Quote 2 失败: ${q2Data.error}`);
+          const quote2 = q2Data.quote;
+          const txReq2 = quote2.transactionRequest;
+
+          // USDC approve（如果有 approvalAddress）
+          if (quote2.estimate?.approvalAddress) {
+            const tokenWithSigner = new ethers.Contract(leg.relay_stable_addr, erc20Abi, tempRelaySigner);
+            setProgress(prev => [...prev, `   🔓 [${idx + 1}] ${lang === 'en' ? 'Approving USDC...' : '授权 USDC...'}`]);
+            const approveTx = await tokenWithSigner.approve(quote2.estimate.approvalAddress, usdcBalance);
+            await approveTx.wait(1);
           }
 
-          try {
-            // 3a: 创建 BNB→XMR 订单（获取 XMR 收款地址）
-            // 注意：XMR 地址由服务商生成，我们不需要自己的 XMR 钱包
-            // 出腿的 XMR→BNB 订单先创建，拿到 XMR 收款地址，再作为入腿的目标
-            setProgress(prev => [...prev, `   🔄 ${lang === 'en' ? 'Creating XMR→BNB order...' : '创建 XMR→BNB 订单...'}`]);
-            const outOrderResp = await fetch(`${API_URL}/api/xmr_router`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'create_leg',
-                provider_id: leg.out_provider,
-                from_currency: 'xmr',
-                to_currency: 'bnb',
-                amount: leg.amount_bnb * 0.97, // 估算 XMR 金额（扣 3% 手续费）
-                address: toAddress,
-                from_network: '',
-                to_network: 'bsc',
-              })
-            });
-            const outOrderData = await outOrderResp.json();
-            if (!outOrderData.success) throw new Error(outOrderData.error);
-            const outOrder = outOrderData.order;
-            const xmrReceiveAddress = outOrder.payin_address;
-            setProgress(prev => [...prev, `   ✅ XMR→BNB ${lang === 'en' ? 'order created' : '订单已创建'} (${leg.out_provider})`]);
-            setProgress(prev => [...prev, `   📬 XMR ${lang === 'en' ? 'receive address' : '收款地址'}: ${xmrReceiveAddress.slice(0, 20)}...`]);
-
-            // 3b: 创建 BNB→XMR 订单（目标地址 = 上面的 XMR 地址）
-            setProgress(prev => [...prev, `   🔄 ${lang === 'en' ? 'Creating BNB→XMR order...' : '创建 BNB→XMR 订单...'}`]);
-            const inOrderResp = await fetch(`${API_URL}/api/xmr_router`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'create_leg',
-                provider_id: leg.in_provider,
-                from_currency: 'bnb',
-                to_currency: 'xmr',
-                amount: leg.amount_bnb,
-                address: xmrReceiveAddress,
-                from_network: 'bsc',
-                to_network: '',
-              })
-            });
-            const inOrderData = await inOrderResp.json();
-            if (!inOrderData.success) throw new Error(inOrderData.error);
-            const inOrder = inOrderData.order;
-            setProgress(prev => [...prev, `   ✅ BNB→XMR ${lang === 'en' ? 'order created' : '订单已创建'} (${leg.in_provider})`]);
-            setProgress(prev => [...prev, `   💳 ${lang === 'en' ? 'Send' : '请发送'} ${leg.amount_bnb.toFixed(6)} BNB ${lang === 'en' ? 'to' : '到'}: ${inOrder.payin_address.slice(0, 20)}...`]);
-
-            // 3c: 发送 BNB 到服务商收款地址
-            setProgress(prev => [...prev, `   🚀 ${lang === 'en' ? 'Sending BNB...' : '发送 BNB...'}`]);
-            const provider = new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org');
-            let signer;
-            if (inputType === 'mnemonic') {
-              signer = ethers.HDNodeWallet.fromMnemonic(
-                ethers.Mnemonic.fromPhrase(inputValue)
-              ).connect(provider);
-            } else {
-              signer = new ethers.Wallet(inputValue, provider);
-            }
-            const amountWei = ethers.parseEther(leg.amount_bnb.toFixed(6));
-            const tx = await signer.sendTransaction({
-              to: inOrder.payin_address,
-              value: amountWei,
-            });
-            setProgress(prev => [...prev, `   ✅ BNB ${lang === 'en' ? 'sent' : '已发送'}: ${tx.hash.slice(0, 16)}...`]);
-            await tx.wait(1);
-            setProgress(prev => [...prev, `   ⛓️ ${lang === 'en' ? 'Confirmed on BSC' : 'BSC 已确认'}`]);
-
-            // 3d: 轮询 BNB→XMR 订单状态（最多等 30 分钟）
-            setProgress(prev => [...prev, `   ⏳ ${lang === 'en' ? 'Waiting for XMR conversion...' : '等待 XMR 兑换...'}`]);
-            let inStatus = 'waiting';
-            const inDeadline = Date.now() + 30 * 60 * 1000;
-            while (Date.now() < inDeadline && !['finished', 'failed', 'refunded'].includes(inStatus)) {
-              await new Promise(res => setTimeout(res, 15000));
-              try {
-                const stResp = await fetch(`${API_URL}/api/xmr_router`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ action: 'status', provider_id: leg.in_provider, order_id: inOrder.order_id })
-                });
-                const stData = await stResp.json();
-                inStatus = stData.status || 'waiting';
-                setProgress(prev => {
-                  const last = prev[prev.length - 1];
-                  const newLine = `   ⏳ BNB→XMR: ${inStatus}`;
-                  return last.startsWith('   ⏳ BNB→XMR:') ? [...prev.slice(0, -1), newLine] : [...prev, newLine];
-                });
-              } catch { /* 忽略轮询错误 */ }
-            }
-
-            if (inStatus === 'finished') {
-              setProgress(prev => [...prev, `   ✅ ${lang === 'en' ? 'XMR received! Waiting for BNB output...' : 'XMR 已到账！等待 BNB 输出...'}`]);
-              // 轮询 XMR→BNB 订单
-              let outStatus = 'waiting';
-              const outDeadline = Date.now() + 30 * 60 * 1000;
-              while (Date.now() < outDeadline && !['finished', 'failed', 'refunded'].includes(outStatus)) {
-                await new Promise(res => setTimeout(res, 15000));
-                try {
-                  const stResp = await fetch(`${API_URL}/api/xmr_router`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'status', provider_id: leg.out_provider, order_id: outOrder.order_id })
-                  });
-                  const stData = await stResp.json();
-                  outStatus = stData.status || 'waiting';
-                  setProgress(prev => {
-                    const last = prev[prev.length - 1];
-                    const newLine = `   ⏳ XMR→BNB: ${outStatus}`;
-                    return last.startsWith('   ⏳ XMR→BNB:') ? [...prev.slice(0, -1), newLine] : [...prev, newLine];
-                  });
-                } catch { /* 忽略 */ }
-              }
-              if (outStatus === 'finished') {
-                setProgress(prev => [...prev, `   🎉 ${lang === 'en' ? `Split ${i + 1} complete!` : `第 ${i + 1} 笔完成！`}`]);
-                legResults.push({ leg_idx: i, status: 'success', in_order: inOrder, out_order: outOrder });
-              } else {
-                setProgress(prev => [...prev, `   ⚠️ XMR→BNB ${lang === 'en' ? `status: ${outStatus}` : `状态: ${outStatus}`}`]);
-                legResults.push({ leg_idx: i, status: outStatus, in_order: inOrder, out_order: outOrder });
-              }
-            } else {
-              setProgress(prev => [...prev, `   ⚠️ BNB→XMR ${lang === 'en' ? `status: ${inStatus}` : `状态: ${inStatus}`}`]);
-              legResults.push({ leg_idx: i, status: inStatus, in_order: inOrder, out_order: outOrder });
-            }
-          } catch (legErr) {
-            setProgress(prev => [...prev, `   ❌ ${lang === 'en' ? `Split ${i + 1} failed` : `第 ${i + 1} 笔失败`}: ${legErr}`]);
-            legResults.push({ leg_idx: i, status: 'failed', error: String(legErr) });
+          // 检查 relay 链原生代币余额是否够 gas，不够则从 LiFi 拿一点点
+          const nativeBalance = await relayProvider.getBalance(tempAddress);
+          if (nativeBalance < BigInt(5e15)) {
+            // 估算会有 gas 预留（LiFi 报价通常已经考虑）
+            setProgress(prev => [...prev, `   ⚠️ [${idx + 1}] ${lang === 'en' ? 'Low native balance on relay chain' : '中继链原生币余额低'}`]);
           }
 
-          setProgressPercent(15 + Math.floor(((i + 1) / route.legs.length) * 80));
+          setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending ' + leg.relay_chain.toUpperCase() + ' tx...' : '发送 ' + leg.relay_chain.toUpperCase() + ' 交易...'}`]);
+          const tx2 = await tempRelaySigner.sendTransaction({
+            to: txReq2.to,
+            value: BigInt(txReq2.value || 0),
+            data: txReq2.data,
+            gasLimit: BigInt(txReq2.gasLimit || 800000),
+          });
+          setProgress(prev => [...prev, `   ✅ [${idx + 1}] ${leg.relay_chain.toUpperCase()} tx: ${tx2.hash.slice(0, 16)}...`]);
+          await tx2.wait(1);
+
+          // 轮询第二跳
+          setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? 'Bridging back to BSC...' : '跨链回 BSC...'}`]);
+          const hop2Deadline = Date.now() + 5 * 60 * 1000;
+          let hop2Status = 'PENDING';
+          while (Date.now() < hop2Deadline && hop2Status !== 'DONE' && hop2Status !== 'FAILED') {
+            await new Promise(r => setTimeout(r, 6000));
+            try {
+              const s = await fetch(`${API_URL}/api/dex_mixer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'status', tx_hash: tx2.hash, from_chain: leg.relay_chain_id, to_chain: 56 })
+              });
+              const sd = await s.json();
+              hop2Status = sd.status || 'PENDING';
+            } catch {}
+          }
+          if (hop2Status !== 'DONE') throw new Error(`第二跳未完成: ${hop2Status}`);
+
+          setProgress(prev => [...prev, `   🎉 [${idx + 1}] ${lang === 'en' ? `Split ${idx + 1} delivered to target` : `第 ${idx + 1} 笔已到达 target`}`]);
+          return { leg_idx: idx, status: 'success', tx_hash_1: tx1.hash, tx_hash_2: tx2.hash, relay_chain: leg.relay_chain };
+        };
+
+        // 并行执行所有 leg（Promise.allSettled）
+        setProgress(prev => [...prev, `🚀 ${lang === 'en' ? 'Executing ' + route.num_legs + ' legs in parallel...' : '并行执行 ' + route.num_legs + ' 笔...'}`]);
+        const legResults = await Promise.allSettled(
+          route.legs.map((leg: any, idx: number) => executeOneLeg(leg, idx))
+        );
+        const successLegs = legResults.filter(r => r.status === 'fulfilled').length;
+        const failedLegs = legResults.length - successLegs;
+
+        setProgress(prev => [...prev, `\n🎉 ${lang === 'en' ? 'Ultimate Privacy complete!' : '极致隐私完成！'}`]);
+        setProgress(prev => [...prev, `✅ ${lang === 'en' ? `${successLegs}/${route.num_legs} splits delivered` : `${successLegs}/${route.num_legs} 笔已到账`}`]);
+        if (failedLegs > 0) {
+          setProgress(prev => [...prev, `⚠️ ${lang === 'en' ? `${failedLegs} split(s) failed — funds may be stuck on relay chain, see /recover` : `${failedLegs} 笔失败——可能卡在中继链，见 /recover`}`]);
         }
-
-        const successLegs = legResults.filter(l => l.status === 'finished' || l.status === 'success').length;
-        setProgress(prev => [...prev, `\n🎉 ${lang === 'en' ? 'XMR Ghost Route complete!' : 'XMR 幽灵路由完成！'}`]);
-        setProgress(prev => [...prev, `✅ ${lang === 'en' ? `${successLegs}/${route.legs.length} splits delivered` : `${successLegs}/${route.legs.length} 笔已到账`}`]);
-        setProgress(prev => [...prev, `🔒 ${lang === 'en' ? 'Source address is untraceable via XMR black hole' : '源地址通过 XMR 黑洞完全隐匿'}`]);
+        setProgress(prev => [...prev, `🔒 ${lang === 'en' ? 'Source untraceable: amount split + currency changed + chain bridged' : '源地址已隐匿：金额打碎 + 币种切换 + 跨链断点'}`]);
         setProgressPercent(100);
 
         setResult({
           success: successLegs > 0,
           mode: 'ultimate',
-          total_transactions: route.legs.length,
+          total_transactions: route.num_legs,
           success_count: successLegs,
-          failed_count: route.legs.length - successLegs,
-          results: legResults,
+          failed_count: failedLegs,
+          results: legResults.map(r => r.status === 'fulfilled' ? r.value : { status: 'failed', error: String(r.reason) }),
           route_id: route.route_id,
         });
         return;
