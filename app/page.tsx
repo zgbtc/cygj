@@ -1016,43 +1016,7 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
           </div>
         )}
 
-        {/* 极致隐私模式：XMR 幽灵路由说明 */}
-        {mode === 'ultimate' && (
-          <div className="mt-4 p-4 rounded-xl bg-[#0a0a0a] border border-[#d4af37]/30">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🕵️</span>
-              <span className="text-sm font-bold text-[#d4af37]">
-                {lang === 'en' ? 'XMR Ghost Route' : 'XMR 幽灵路由'}
-              </span>
-              <span className="text-xs bg-[#10b981]/20 text-[#10b981] px-2 py-0.5 rounded-full">
-                {lang === 'en' ? 'Untraceable' : '无法追踪'}
-              </span>
-            </div>
-            <div className="space-y-1.5 text-xs text-gray-400">
-              <div className="flex items-start gap-2">
-                <span className="text-[#d4af37] mt-0.5">→</span>
-                <span>{lang === 'en' ? 'Auto-splits amount into 2–4 parts' : '自动拆分金额为 2–4 笔'}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-[#d4af37] mt-0.5">→</span>
-                <span>{lang === 'en' ? 'Each part: BNB → XMR (black hole) → BNB' : '每笔：BNB → XMR（黑洞）→ BNB'}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-[#d4af37] mt-0.5">→</span>
-                <span>{lang === 'en' ? 'Random delay between splits (1–5 min)' : '每笔之间随机延迟 1–5 分钟'}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-[#d4af37] mt-0.5">→</span>
-                <span>{lang === 'en' ? 'Multiple providers: ChangeNOW + SimpleSwap + eXch' : '多服务商：ChangeNOW + SimpleSwap + eXch'}</span>
-              </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-[#d4af37]/10 flex items-center justify-between text-xs">
-              <span className="text-gray-500">{lang === 'en' ? 'Est. time: 15–40 min' : '预计耗时：15–40 分钟'}</span>
-              <span className="text-gray-500">{lang === 'en' ? 'Fee: ~5–8%' : '手续费：约 5–8%'}</span>
-              <span className="text-[#10b981]">{lang === 'en' ? 'Min: 0.03 BNB' : '最小：0.03 BNB'}</span>
-            </div>
-          </div>
-        )}
+
       </div>
       
       {/* Chain Selection */}
