@@ -715,12 +715,12 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             return { txHash: tx.hash, toGasReserve };
           };
 
-          // 默认 gas 预留（如果 LiFi 没返回估算）
+          // 默认 gas 预留（充足的安全边际）
           const fallbackGasReserve: Record<string, bigint> = {
-            'polygon':  ethers.parseEther('0.03'),
-            'arbitrum': ethers.parseEther('0.0003'),
-            'optimism': ethers.parseEther('0.0003'),
-            'base':     ethers.parseEther('0.0003'),
+            'polygon':  ethers.parseEther('0.5'),     // 0.5 POL ≈ $0.05，Mayan 桥需要约 0.08 POL
+            'arbitrum': ethers.parseEther('0.001'),   // 0.001 ETH ≈ $2
+            'optimism': ethers.parseEther('0.001'),
+            'base':     ethers.parseEther('0.001'),
           };
 
           // ===== 执行第一跳（BSC → hops[0]）=====
