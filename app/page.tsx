@@ -1107,7 +1107,8 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
         />
       </div>
 
-      {/* Number of Hops */}
+      {/* Number of Hops - 仅 Fast Mode 显示 */}
+      {mode === 'fast' && (
       <div className="mb-4">
         <label className="block text-sm font-medium text-white mb-2">
           {text.hops} <span className="text-[#d4af37]">{numHops}</span> <span className="text-xs text-gray-400">{text.moreIsStealthier}</span>
@@ -1152,59 +1153,41 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
           />
         </div>
       </div>
-      {/* Fee Estimate */}
+      )}
+      {/* Fee Estimate - Fast Mode 显示详细费用，Ultimate 显示简要 */}
+      {mode === 'fast' ? (
       <div className="bg-[#0a0a0a] border border-[#d4af37]/30 p-4 rounded-lg mb-4 shadow-lg shadow-[#d4af37]/10">
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
             <p className="text-gray-400 text-xs">{text.donation}</p>
             <p className="font-semibold text-[#d4af37]">
-              {mode === 'ultimate' && amount
-                ? (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100).toFixed(4)
-                : (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)).toFixed(4)} BNB
+              {(numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)).toFixed(4)} BNB
             </p>
           </div>
           <div>
             <p className="text-gray-400 text-xs">{text.estGas}</p>
             <p className="font-semibold text-[#d4af37]">~{(numHops * 0.00021).toFixed(5)} BNB</p>
           </div>
-          {mode === 'ultimate' && (
-            <div>
-              <p className="text-gray-400 text-xs">{text.crosschainFee}</p>
-              <p className="font-semibold text-[#ffa500]">
-                ~{MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0} BNB
-              </p>
-            </div>
-          )}
           <div>
             <p className="text-gray-400 text-xs">{text.totalFee}</p>
             <p className="font-semibold text-[#d4af37]">
-              ~{mode === 'ultimate' && amount
-                ? ((parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100) + 
-                   numHops * 0.00021 + 
-                   (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)
-                : ((numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) + 
-                   numHops * 0.00021 + 
-                   (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)} BNB
+              ~{((numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) + numHops * 0.00021).toFixed(5)} BNB
             </p>
           </div>
           <div>
             <p className="text-gray-400 text-xs">{text.expectedReceive}</p>
             <p className="font-semibold text-[#10b981]">
-              {amount ? (
-                mode === 'ultimate'
-                  ? (parseFloat(amount) - 
-                     (parseFloat(amount) * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.percentageFee || 0) / 100) - 
-                     numHops * 0.00021 - 
-                     (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)
-                  : (parseFloat(amount) - 
-                     (numHops * (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.feeRate || 0.0003)) - 
-                     numHops * 0.00021 - 
-                     (MIXING_MODES[mode as keyof typeof MIXING_MODES]?.crosschainFee || 0)).toFixed(5)
-              ) : "0"} BNB
+              {amount ? (parseFloat(amount) - (numHops * 0.0003) - numHops * 0.00021).toFixed(5) : "0"} BNB
             </p>
           </div>
         </div>
       </div>
+      ) : (
+      <div className="bg-[#0a0a0a] border border-[#d4af37]/20 px-4 py-3 rounded-lg mb-4 flex items-center justify-between text-sm">
+        <span className="text-gray-400">{lang === 'en' ? 'Est. fee: ~0.5–1%' : '预估手续费：约 0.5–1%'}</span>
+        <span className="text-[#10b981]">{amount ? `≈ ${(parseFloat(amount) * 0.99).toFixed(5)} BNB` : ''} {lang === 'en' ? 'received' : '到账'}</span>
+      </div>
+      )}
 
       {/* Execute Button */}
       <button
