@@ -656,11 +656,13 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
 
           // 发送第一跳
           setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending BSC tx...' : '发送 BSC 交易...'}`]);
+          const txValue = txReq1.value ? (typeof txReq1.value === 'string' && txReq1.value.startsWith('0x') ? BigInt(txReq1.value) : BigInt(txReq1.value)) : BigInt(0);
+          const txGasLimit = txReq1.gasLimit ? (typeof txReq1.gasLimit === 'string' && txReq1.gasLimit.startsWith('0x') ? BigInt(txReq1.gasLimit) : BigInt(txReq1.gasLimit)) : BigInt(500000);
           const tx1 = await bscSigner.sendTransaction({
             to: txReq1.to,
-            value: BigInt(txReq1.value || 0),
+            value: txValue,
             data: txReq1.data,
-            gasLimit: BigInt(txReq1.gasLimit || 500000),
+            gasLimit: txGasLimit,
           });
           setProgress(prev => [...prev, `   ✅ [${idx + 1}] BSC tx: ${tx1.hash.slice(0, 16)}...`]);
           await tx1.wait(1);
@@ -729,11 +731,13 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
 
           // 发送第二跳
           setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending relay tx...' : '发送中继交易...'}`]);
+          const tx2Value = txReq2.value ? (typeof txReq2.value === 'string' && txReq2.value.startsWith('0x') ? BigInt(txReq2.value) : BigInt(txReq2.value)) : BigInt(0);
+          const tx2GasLimit = txReq2.gasLimit ? (typeof txReq2.gasLimit === 'string' && txReq2.gasLimit.startsWith('0x') ? BigInt(txReq2.gasLimit) : BigInt(txReq2.gasLimit)) : BigInt(800000);
           const tx2 = await relaySigner.sendTransaction({
             to: txReq2.to,
-            value: BigInt(txReq2.value || 0),
+            value: tx2Value,
             data: txReq2.data,
-            gasLimit: BigInt(txReq2.gasLimit || 800000),
+            gasLimit: tx2GasLimit,
           });
           setProgress(prev => [...prev, `   ✅ [${idx + 1}] Relay tx: ${tx2.hash.slice(0, 16)}...`]);
           await tx2.wait(1);
@@ -771,7 +775,11 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
         setProgress(prev => [...prev, `\n🎉 ${lang === 'en' ? 'Ultimate Privacy complete!' : '极致隐私完成！'}`]);
         setProgress(prev => [...prev, `✅ ${lang === 'en' ? `${successLegs}/${route.num_legs} splits delivered` : `${successLegs}/${route.num_legs} 笔已到账`}`]);
         if (failedLegs > 0) {
-          setProgress(prev => [...prev, `⚠️ ${lang === 'en' ? `${failedLegs} split(s) failed — funds may be stuck on relay chain, see /recover` : `${failedLegs} 笔失败——可能卡在中继链，见 /recover`}`]);
+          setProgress(prev => [...prev, `⚠️ ${lang === 'en' ? `${failedLegs} split(s) failed — funds safe (recoverable via relay mnemonic)` : `${failedLegs} 笔失败——资金安全（可通过中继助记词恢复）`}`]);
+          // 显示具体错误
+          legResults.filter(r => r.status === 'rejected').forEach((r: any) => {
+            setProgress(prev => [...prev, `   ❌ ${String(r.reason).slice(0, 200)}`]);
+          });
         }
         setProgress(prev => [...prev, `🔒 ${lang === 'en' ? 'Source untraceable: amount split + currency changed + chain bridged' : '源地址已隐匿：金额打碎 + 币种切换 + 跨链断点'}`]);
         setProgressPercent(100);
