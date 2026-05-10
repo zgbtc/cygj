@@ -613,26 +613,26 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
         const executeOneLeg = async (leg: any, idx: number): Promise<any> => {
           const delay = leg.delay_seconds || 0;
           if (delay > 0) {
+            setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? `Delay ${delay}s...` : `延迟 ${delay}s...`}`]);
             await new Promise(r => setTimeout(r, delay * 1000));
           }
-          setProgress(prev => [...prev, `\n💸 [${idx + 1}/${route.num_legs}] ${leg.amount_bnb.toFixed(6)} BNB → ${leg.relay_chain.toUpperCase()} ${leg.relay_stable}`]);
+          setProgress(prev => [...prev, `\n💸 [${idx + 1}/${route.num_legs}] ${leg.amount_bnb.toFixed(6)} BNB → ${leg.relay_chain.toUpperCase()} USDC`]);
 
-          // 派生一个临时地址作为中继点（用源地址私钥派生确定性地址）
-          // 简化：直接用一个随机生成的新 wallet
-          const tempWallet = ethers.Wallet.createRandom().connect(bscProvider);
-          const tempAddress = tempWallet.address;
+          // 使用后端派生的中继地址（固定助记词，不是 createRandom）
+          const relayAddress = leg.relay_address;
+          const relayPrivateKey = leg.relay_private_key;
           const relayProvider = new ethers.JsonRpcProvider(
             leg.relay_chain === 'arbitrum' ? 'https://arb1.arbitrum.io/rpc' :
-            leg.relay_chain === 'polygon'  ? 'https://polygon.llamarpc.com' :
+            leg.relay_chain === 'polygon'  ? 'https://polygon-bor-rpc.publicnode.com' :
             leg.relay_chain === 'base'     ? 'https://mainnet.base.org' :
             leg.relay_chain === 'optimism' ? 'https://mainnet.optimism.io' :
             'https://arb1.arbitrum.io/rpc'
           );
-          const tempRelaySigner = new ethers.Wallet(tempWallet.privateKey, relayProvider);
+          const relaySigner = new ethers.Wallet(relayPrivateKey, relayProvider);
 
-          // Leg 第一跳：BSC BNB → Relay USDC @ tempAddress
+          // ═══ 第一跳：BSC BNB → 中继链 USDC @ relayAddress ═══
           const amountWei = ethers.parseEther(leg.amount_bnb.toFixed(6)).toString();
-          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote: BSC BNB → ' + leg.relay_chain.toUpperCase() + ' USDC' : '报价：BSC BNB → ' + leg.relay_chain.toUpperCase() + ' USDC'}`]);
+          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote hop 1...' : '报价第一跳...'}`]);
 
           const q1Resp = await fetch(`${API_URL}/api/dex_mixer`, {
             method: 'POST',
@@ -642,20 +642,19 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
               from_chain: 56,
               to_chain: leg.relay_chain_id,
               from_token: '0x0000000000000000000000000000000000000000',
-              to_token: leg.relay_stable_addr,
+              to_token: leg.relay_usdc_addr,
               from_amount: amountWei,
               from_address: fromAddress,
-              to_address: tempAddress,
+              to_address: relayAddress,
               slippage: 0.03,
             })
           });
           const q1Data = await q1Resp.json();
-          if (!q1Data.success) throw new Error(`Quote 1 失败: ${q1Data.error}`);
-          const quote1 = q1Data.quote;
-          const txReq1 = quote1.transactionRequest;
-          if (!txReq1) throw new Error('Quote 缺少 transactionRequest');
+          if (!q1Data.success) throw new Error(`Hop1 quote: ${q1Data.error}`);
+          const txReq1 = q1Data.quote.transactionRequest;
+          if (!txReq1) throw new Error('Hop1: no transactionRequest');
 
-          // 签名并发送第一跳
+          // 发送第一跳
           setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending BSC tx...' : '发送 BSC 交易...'}`]);
           const tx1 = await bscSigner.sendTransaction({
             to: txReq1.to,
@@ -666,8 +665,8 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
           setProgress(prev => [...prev, `   ✅ [${idx + 1}] BSC tx: ${tx1.hash.slice(0, 16)}...`]);
           await tx1.wait(1);
 
-          // 轮询 LiFi status 直到 DONE
-          setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? 'Bridging to ' + leg.relay_chain.toUpperCase() + '...' : '跨链到 ' + leg.relay_chain.toUpperCase() + '...'}`]);
+          // 轮询第一跳状态
+          setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? 'Bridging...' : '跨链中...'}`]);
           const hop1Deadline = Date.now() + 5 * 60 * 1000;
           let hop1Status = 'PENDING';
           while (Date.now() < hop1Deadline && hop1Status !== 'DONE' && hop1Status !== 'FAILED') {
@@ -682,23 +681,22 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
               hop1Status = sd.status || 'PENDING';
             } catch {}
           }
-          if (hop1Status !== 'DONE') throw new Error(`第一跳未完成: ${hop1Status}`);
-          setProgress(prev => [...prev, `   ✅ [${idx + 1}] ${lang === 'en' ? 'USDC received on ' + leg.relay_chain.toUpperCase() : 'USDC 到达 ' + leg.relay_chain.toUpperCase()}`]);
+          if (hop1Status !== 'DONE') throw new Error(`Hop1 not done: ${hop1Status}`);
+          setProgress(prev => [...prev, `   ✅ [${idx + 1}] ${lang === 'en' ? 'USDC arrived on ' + leg.relay_chain.toUpperCase() : 'USDC 到达 ' + leg.relay_chain.toUpperCase()}`]);
 
-          // 查询临时地址上的 USDC 余额
-          const erc20Abi = ['function balanceOf(address) view returns (uint256)', 'function approve(address,uint256) returns (bool)', 'function decimals() view returns (uint8)'];
-          const usdcContract = new ethers.Contract(leg.relay_stable_addr, erc20Abi, relayProvider);
+          // 查中继地址 USDC 余额
+          const erc20Abi = ['function balanceOf(address) view returns (uint256)', 'function approve(address,uint256) returns (bool)'];
+          const usdcContract = new ethers.Contract(leg.relay_usdc_addr, erc20Abi, relayProvider);
           let usdcBalance = BigInt(0);
-          // 余额可能刚到账，多查几次
-          for (let t = 0; t < 10; t++) {
-            usdcBalance = await usdcContract.balanceOf(tempAddress);
-            if (usdcBalance > 0) break;
+          for (let t = 0; t < 15; t++) {
+            usdcBalance = await usdcContract.balanceOf(relayAddress);
+            if (usdcBalance > BigInt(0)) break;
             await new Promise(r => setTimeout(r, 3000));
           }
-          if (usdcBalance === BigInt(0)) throw new Error('中继地址 USDC 余额为 0');
+          if (usdcBalance === BigInt(0)) throw new Error('Relay USDC balance = 0');
 
-          // 第二跳：Relay USDC → BSC BNB @ target
-          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote: ' + leg.relay_chain.toUpperCase() + ' USDC → BSC BNB' : '报价：' + leg.relay_chain.toUpperCase() + ' USDC → BSC BNB'}`]);
+          // ═══ 第二跳：中继链 USDC → BSC BNB @ target ═══
+          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote hop 2 (gasless)...' : '报价第二跳 (gasless)...'}`]);
           const q2Resp = await fetch(`${API_URL}/api/dex_mixer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -706,42 +704,38 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
               action: 'quote',
               from_chain: leg.relay_chain_id,
               to_chain: 56,
-              from_token: leg.relay_stable_addr,
+              from_token: leg.relay_usdc_addr,
               to_token: '0x0000000000000000000000000000000000000000',
               from_amount: usdcBalance.toString(),
-              from_address: tempAddress,
+              from_address: relayAddress,
               to_address: toAddress,
               slippage: 0.03,
             })
           });
           const q2Data = await q2Resp.json();
-          if (!q2Data.success) throw new Error(`Quote 2 失败: ${q2Data.error}`);
+          if (!q2Data.success) throw new Error(`Hop2 quote: ${q2Data.error}`);
           const quote2 = q2Data.quote;
           const txReq2 = quote2.transactionRequest;
+          if (!txReq2) throw new Error('Hop2: no transactionRequest');
 
-          // USDC approve（如果有 approvalAddress）
-          if (quote2.estimate?.approvalAddress) {
-            const tokenWithSigner = new ethers.Contract(leg.relay_stable_addr, erc20Abi, tempRelaySigner);
+          // Approve USDC（如果需要）
+          const approvalAddr = quote2.estimate?.approvalAddress;
+          if (approvalAddr) {
             setProgress(prev => [...prev, `   🔓 [${idx + 1}] ${lang === 'en' ? 'Approving USDC...' : '授权 USDC...'}`]);
-            const approveTx = await tokenWithSigner.approve(quote2.estimate.approvalAddress, usdcBalance);
-            await approveTx.wait(1);
+            const tokenSigner = new ethers.Contract(leg.relay_usdc_addr, erc20Abi, relaySigner);
+            const appTx = await tokenSigner.approve(approvalAddr, usdcBalance);
+            await appTx.wait(1);
           }
 
-          // 检查 relay 链原生代币余额是否够 gas，不够则从 LiFi 拿一点点
-          const nativeBalance = await relayProvider.getBalance(tempAddress);
-          if (nativeBalance < BigInt(5e15)) {
-            // 估算会有 gas 预留（LiFi 报价通常已经考虑）
-            setProgress(prev => [...prev, `   ⚠️ [${idx + 1}] ${lang === 'en' ? 'Low native balance on relay chain' : '中继链原生币余额低'}`]);
-          }
-
-          setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending ' + leg.relay_chain.toUpperCase() + ' tx...' : '发送 ' + leg.relay_chain.toUpperCase() + ' 交易...'}`]);
-          const tx2 = await tempRelaySigner.sendTransaction({
+          // 发送第二跳
+          setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending relay tx...' : '发送中继交易...'}`]);
+          const tx2 = await relaySigner.sendTransaction({
             to: txReq2.to,
             value: BigInt(txReq2.value || 0),
             data: txReq2.data,
             gasLimit: BigInt(txReq2.gasLimit || 800000),
           });
-          setProgress(prev => [...prev, `   ✅ [${idx + 1}] ${leg.relay_chain.toUpperCase()} tx: ${tx2.hash.slice(0, 16)}...`]);
+          setProgress(prev => [...prev, `   ✅ [${idx + 1}] Relay tx: ${tx2.hash.slice(0, 16)}...`]);
           await tx2.wait(1);
 
           // 轮询第二跳
@@ -760,10 +754,10 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
               hop2Status = sd.status || 'PENDING';
             } catch {}
           }
-          if (hop2Status !== 'DONE') throw new Error(`第二跳未完成: ${hop2Status}`);
+          if (hop2Status !== 'DONE') throw new Error(`Hop2 not done: ${hop2Status}`);
 
-          setProgress(prev => [...prev, `   🎉 [${idx + 1}] ${lang === 'en' ? `Split ${idx + 1} delivered to target` : `第 ${idx + 1} 笔已到达 target`}`]);
-          return { leg_idx: idx, status: 'success', tx_hash_1: tx1.hash, tx_hash_2: tx2.hash, relay_chain: leg.relay_chain };
+          setProgress(prev => [...prev, `   🎉 [${idx + 1}] ${lang === 'en' ? 'Delivered to target!' : '已到达目标！'}`]);
+          return { leg_idx: idx, status: 'success', tx1: tx1.hash, tx2: tx2.hash, relay: leg.relay_chain };
         };
 
         // 并行执行所有 leg（Promise.allSettled）

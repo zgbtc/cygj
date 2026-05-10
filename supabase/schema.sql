@@ -84,3 +84,21 @@ create table if not exists daily_stats (
 -- ==========================================
 -- 我们不开启 RLS，所有访问都通过后端 service_role key
 -- 用户需要自己的历史记录，通过 /api/session/[id] 接口按 plan_id 查询
+
+
+-- ==========================================
+-- 表 5: 中继地址使用记录（Ultimate Privacy 模式）
+-- ==========================================
+create table if not exists relay_addresses (
+  id            bigserial primary key,
+  session_id    text,                            -- route_id
+  relay_index   int not null,                    -- BIP44 派生索引
+  address       text not null,                   -- 中继地址
+  chain         text not null,                   -- 使用的中继链
+  status        text not null default 'active',  -- active | done | stuck
+  usdc_balance  numeric(38, 6),                  -- 最终 USDC 余额（用于检测卡住的资金）
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists idx_relay_index on relay_addresses(relay_index desc);
+create index if not exists idx_relay_status on relay_addresses(status);
