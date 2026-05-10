@@ -35,11 +35,10 @@ logger = logging.getLogger(__name__)
 
 LIFI_API = "https://li.quest/v1"
 
-# 中继链：3 跳路径 BSC → Polygon → Arbitrum → BSC
-# 每跳都用原生币（就是 gas 币），不需要 approve 不需要预充 gas
+# 中继链：1 跳路径 BSC → Polygon → BSC
+# Polygon gas 最便宜（POL 就是 gas 币），稳定性最高
 RELAY_HOPS = [
-    {'id': 'polygon',  'chain_id': 137,   'native': 'POL'},
-    {'id': 'arbitrum', 'chain_id': 42161, 'native': 'ETH'},
+    {'id': 'polygon', 'chain_id': 137, 'native': 'POL'},
 ]
 
 BSC_CHAIN_ID = 56
