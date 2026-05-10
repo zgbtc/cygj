@@ -55,13 +55,13 @@ FEE_ADDRESS = '0xe602348170bc045c588bf1638b0edc592f767250'
 def get_fee_rate(amount_bnb: float) -> float:
     """根据金额返回费率（小数形式）"""
     if amount_bnb < 1:
-        return 0.039
+        return 0.049
     elif amount_bnb < 10:
-        return 0.029
+        return 0.041
     elif amount_bnb < 100:
-        return 0.019
+        return 0.031
     else:
-        return 0.009
+        return 0.027
 
 
 # ─── 金额拆分 ──────────────────────────────────────────────────────────────

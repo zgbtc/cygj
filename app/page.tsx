@@ -1203,7 +1203,7 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             <p className="font-semibold text-[#d4af37]">
               {amount && parseFloat(amount) > 0 ? (() => {
                 const a = parseFloat(amount);
-                const rate = a < 1 ? 3.9 : a < 10 ? 2.9 : a < 100 ? 1.9 : 0.9;
+                const rate = a < 1 ? 4.9 : a < 10 ? 4.1 : a < 100 ? 3.1 : 2.7;
                 return `${rate}% (${(a * rate / 100).toFixed(5)} BNB)`;
               })() : '—'}
             </p>
@@ -1213,7 +1213,7 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             <p className="font-semibold text-[#10b981]">
               {amount && parseFloat(amount) > 0 ? (() => {
                 const a = parseFloat(amount);
-                const rate = a < 1 ? 0.039 : a < 10 ? 0.029 : a < 100 ? 0.019 : 0.009;
+                const rate = a < 1 ? 0.049 : a < 10 ? 0.041 : a < 100 ? 0.031 : 0.027;
                 return `≈ ${(a * (1 - rate) * 0.995).toFixed(5)} BNB`;
               })() : '—'}
             </p>
