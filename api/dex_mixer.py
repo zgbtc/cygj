@@ -48,6 +48,21 @@ RELAY_CHAINS = [
 BSC_CHAIN_ID = 56
 NATIVE_TOKEN = '0x0000000000000000000000000000000000000000'  # LiFi 用 0x0 表示原生代币
 
+# 服务费收款地址
+FEE_ADDRESS = '0xe602348170bc045c588bf1638b0edc592f767250'
+
+# Ultimate Privacy 阶梯费率
+def get_fee_rate(amount_bnb: float) -> float:
+    """根据金额返回费率（小数形式）"""
+    if amount_bnb < 1:
+        return 0.039
+    elif amount_bnb < 10:
+        return 0.029
+    elif amount_bnb < 100:
+        return 0.019
+    else:
+        return 0.009
+
 
 # ─── 金额拆分 ──────────────────────────────────────────────────────────────
 
@@ -85,7 +100,15 @@ def split_amount(total: float) -> list:
 
 def build_plan(from_address: str, to_address: str, total_amount: float) -> dict:
     """构建完整的混币计划。"""
-    amounts = split_amount(total_amount)
+    # 计算服务费
+    fee_rate = get_fee_rate(total_amount)
+    service_fee = round(total_amount * fee_rate, 8)
+    net_amount = round(total_amount - service_fee, 8)
+
+    if net_amount <= 0.001:
+        raise ValueError(f"金额过小：扣除服务费 {service_fee} 后不足 0.001 BNB")
+
+    amounts = split_amount(net_amount)
     legs = []
 
     for i, amt in enumerate(amounts):
@@ -114,6 +137,11 @@ def build_plan(from_address: str, to_address: str, total_amount: float) -> dict:
         'from_address': from_address,
         'to_address': to_address,
         'total_amount': total_amount,
+        'service_fee': service_fee,
+        'fee_rate': fee_rate,
+        'fee_rate_percent': round(fee_rate * 100, 1),
+        'fee_address': FEE_ADDRESS,
+        'net_amount': net_amount,
         'num_legs': len(amounts),
         'legs': legs,
         'created_at': int(time.time()),

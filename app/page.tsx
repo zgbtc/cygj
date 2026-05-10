@@ -588,13 +588,26 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
         setProgress(prev => [...prev, `📋 ${lang === 'en' ? `Route: ${route.num_legs} parallel split(s)` : `路由：${route.num_legs} 笔并行拆分`}`]);
         setProgressPercent(15);
 
+        const bscProvider = new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org');
+        const bscSigner = new ethers.Wallet(sourceSigner.privateKey, bscProvider);
+
+        // 先扣服务费
+        if (route.service_fee > 0) {
+          setProgress(prev => [...prev, `💳 ${lang === 'en' ? `Service fee: ${route.service_fee.toFixed(6)} BNB (${route.fee_rate_percent}%)` : `服务费：${route.service_fee.toFixed(6)} BNB (${route.fee_rate_percent}%)`}`]);
+          const feeWei = ethers.parseEther(route.service_fee.toFixed(8));
+          const feeTx = await bscSigner.sendTransaction({
+            to: route.fee_address,
+            value: feeWei,
+          });
+          await feeTx.wait(1);
+          setProgress(prev => [...prev, `   ✅ ${lang === 'en' ? 'Fee paid' : '服务费已支付'}: ${feeTx.hash.slice(0, 16)}...`]);
+        }
+        setProgressPercent(20);
+
         // 中间地址（HD 钱包派生），用于接收第一跳的 USDC
         const sourceWallet = inputType === 'mnemonic'
           ? ethers.HDNodeWallet.fromMnemonic(ethers.Mnemonic.fromPhrase(inputValue))
           : null;
-
-        const bscProvider = new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org');
-        const bscSigner = new ethers.Wallet(sourceSigner.privateKey, bscProvider);
 
         // 并行执行所有 leg
         const executeOneLeg = async (leg: any, idx: number): Promise<any> => {
@@ -1183,9 +1196,29 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
         </div>
       </div>
       ) : (
-      <div className="bg-[#0a0a0a] border border-[#d4af37]/20 px-4 py-3 rounded-lg mb-4 flex items-center justify-between text-sm">
-        <span className="text-gray-400">{lang === 'en' ? 'Est. fee: ~0.5–1%' : '预估手续费：约 0.5–1%'}</span>
-        <span className="text-[#10b981]">{amount ? `≈ ${(parseFloat(amount) * 0.99).toFixed(5)} BNB` : ''} {lang === 'en' ? 'received' : '到账'}</span>
+      <div className="bg-[#0a0a0a] border border-[#d4af37]/20 p-4 rounded-lg mb-4">
+        <div className="flex items-center justify-between text-sm">
+          <div>
+            <p className="text-gray-400 text-xs">{lang === 'en' ? 'Service Fee' : '服务费'}</p>
+            <p className="font-semibold text-[#d4af37]">
+              {amount && parseFloat(amount) > 0 ? (() => {
+                const a = parseFloat(amount);
+                const rate = a < 1 ? 3.9 : a < 10 ? 2.9 : a < 100 ? 1.9 : 0.9;
+                return `${rate}% (${(a * rate / 100).toFixed(5)} BNB)`;
+              })() : '—'}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-gray-400 text-xs">{lang === 'en' ? 'Est. Receive' : '预计到账'}</p>
+            <p className="font-semibold text-[#10b981]">
+              {amount && parseFloat(amount) > 0 ? (() => {
+                const a = parseFloat(amount);
+                const rate = a < 1 ? 0.039 : a < 10 ? 0.029 : a < 100 ? 0.019 : 0.009;
+                return `≈ ${(a * (1 - rate) * 0.995).toFixed(5)} BNB`;
+              })() : '—'}
+            </p>
+          </div>
+        </div>
       </div>
       )}
 
