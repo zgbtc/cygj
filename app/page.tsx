@@ -609,147 +609,150 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
           ? ethers.HDNodeWallet.fromMnemonic(ethers.Mnemonic.fromPhrase(inputValue))
           : null;
 
-        // 并行执行所有 leg
+        // 并行执行所有 leg — 每笔 leg 走多跳链路径
         const executeOneLeg = async (leg: any, idx: number): Promise<any> => {
           const delay = leg.delay_seconds || 0;
           if (delay > 0) {
             setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? `Delay ${delay}s...` : `延迟 ${delay}s...`}`]);
             await new Promise(r => setTimeout(r, delay * 1000));
           }
-          setProgress(prev => [...prev, `\n💸 [${idx + 1}/${route.num_legs}] ${leg.amount_bnb.toFixed(6)} BNB → ${leg.relay_chain.toUpperCase()} POL`]);
 
-          // 使用后端派生的中继地址（固定助记词，不是 createRandom）
-          const relayAddress = leg.relay_address;
-          const relayPrivateKey = leg.relay_private_key;
-          const relayProvider = new ethers.JsonRpcProvider('https://polygon-bor-rpc.publicnode.com');
-          const relaySigner = new ethers.Wallet(relayPrivateKey, relayProvider);
+          // leg.hops 是一个数组，每个元素 = 一个中继点（中继链 + 派生地址）
+          // 路径：源地址(BSC) → hops[0] → hops[1] → ... → target(BSC)
+          const hops = leg.hops || [];
+          const pathLabel = ['BSC', ...hops.map((h: any) => h.relay_chain.toUpperCase()), 'BSC'].join(' → ');
+          setProgress(prev => [...prev, `\n💸 [${idx + 1}/${route.num_legs}] ${leg.amount_bnb.toFixed(6)} BNB · ${pathLabel}`]);
 
-          // ═══ 第一跳：BSC BNB → Polygon POL @ relayAddress ═══
+          // RPC provider 映射
+          const rpcMap: Record<string, string> = {
+            'polygon':  'https://polygon-bor-rpc.publicnode.com',
+            'arbitrum': 'https://arb1.arbitrum.io/rpc',
+            'optimism': 'https://mainnet.optimism.io',
+            'base':     'https://mainnet.base.org',
+          };
+
+          // 通用的单跳执行函数
+          const doHop = async (
+            hopIdx: number,
+            fromChainId: number,
+            toChainId: number,
+            fromAddr: string,
+            toAddr: string,
+            signer: any,
+            fromAmount: string
+          ): Promise<{ txHash: string }> => {
+            setProgress(prev => [...prev, `   🔀 [${idx + 1}.${hopIdx}] ${lang === 'en' ? 'Quote' : '报价'} ${fromChainId} → ${toChainId}`]);
+            const qResp = await fetch(`${API_URL}/api/dex_mixer`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'quote',
+                from_chain: fromChainId,
+                to_chain: toChainId,
+                from_token: '0x0000000000000000000000000000000000000000',
+                to_token: '0x0000000000000000000000000000000000000000',
+                from_amount: fromAmount,
+                from_address: fromAddr,
+                to_address: toAddr,
+                slippage: 0.03,
+              })
+            });
+            const qData = await qResp.json();
+            if (!qData.success) throw new Error(`Hop${hopIdx} quote: ${qData.error}`);
+            const txReq = qData.quote.transactionRequest;
+            if (!txReq) throw new Error(`Hop${hopIdx}: no transactionRequest`);
+
+            const toHex = (v: any, def: number) => {
+              if (!v) return BigInt(def);
+              if (typeof v === 'string' && v.startsWith('0x')) return BigInt(v);
+              return BigInt(v);
+            };
+
+            setProgress(prev => [...prev, `   🚀 [${idx + 1}.${hopIdx}] ${lang === 'en' ? 'Sending tx...' : '发送交易...'}`]);
+            const tx = await signer.sendTransaction({
+              to: txReq.to,
+              value: toHex(txReq.value, 0),
+              data: txReq.data,
+              gasLimit: toHex(txReq.gasLimit, 500000),
+            });
+            setProgress(prev => [...prev, `   ✅ [${idx + 1}.${hopIdx}] tx: ${tx.hash.slice(0, 16)}...`]);
+            await tx.wait(1);
+
+            // 轮询跨链完成
+            setProgress(prev => [...prev, `   ⏳ [${idx + 1}.${hopIdx}] ${lang === 'en' ? 'Bridging...' : '跨链中...'}`]);
+            const deadline = Date.now() + 5 * 60 * 1000;
+            let status = 'PENDING';
+            while (Date.now() < deadline && status !== 'DONE' && status !== 'FAILED') {
+              await new Promise(r => setTimeout(r, 6000));
+              try {
+                const s = await fetch(`${API_URL}/api/dex_mixer`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'status', tx_hash: tx.hash, from_chain: fromChainId, to_chain: toChainId })
+                });
+                const sd = await s.json();
+                status = sd.status || 'PENDING';
+              } catch {}
+            }
+            if (status !== 'DONE') throw new Error(`Hop${hopIdx} not done: ${status}`);
+            return { txHash: tx.hash };
+          };
+
+          // gas 预留（不同链不同）
+          const gasReserve: Record<string, bigint> = {
+            'polygon':  ethers.parseEther('0.005'),   // 0.005 POL
+            'arbitrum': ethers.parseEther('0.00005'), // 0.00005 ETH
+            'optimism': ethers.parseEther('0.00005'),
+            'base':     ethers.parseEther('0.00005'),
+          };
+
+          // ===== 执行第一跳（BSC → hops[0]）=====
           const amountWei = ethers.parseEther(leg.amount_bnb.toFixed(6)).toString();
-          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote hop 1: BSC BNB → Polygon POL' : '报价第一跳：BSC BNB → Polygon POL'}`]);
+          const firstHop = hops[0];
+          const tx1 = await doHop(1, 56, firstHop.relay_chain_id, fromAddress, firstHop.relay_address, bscSigner, amountWei);
 
-          const q1Resp = await fetch(`${API_URL}/api/dex_mixer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'quote',
-              from_chain: 56,
-              to_chain: leg.relay_chain_id,
-              from_token: '0x0000000000000000000000000000000000000000',
-              to_token: '0x0000000000000000000000000000000000000000',
-              from_amount: amountWei,
-              from_address: fromAddress,
-              to_address: relayAddress,
-              slippage: 0.03,
-            })
-          });
-          const q1Data = await q1Resp.json();
-          if (!q1Data.success) throw new Error(`Hop1 quote: ${q1Data.error}`);
-          const txReq1 = q1Data.quote.transactionRequest;
-          if (!txReq1) throw new Error('Hop1: no transactionRequest');
-
-          // 发送第一跳
-          setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending BSC tx...' : '发送 BSC 交易...'}`]);
-          const txValue = txReq1.value ? (typeof txReq1.value === 'string' && txReq1.value.startsWith('0x') ? BigInt(txReq1.value) : BigInt(txReq1.value)) : BigInt(0);
-          const txGasLimit = txReq1.gasLimit ? (typeof txReq1.gasLimit === 'string' && txReq1.gasLimit.startsWith('0x') ? BigInt(txReq1.gasLimit) : BigInt(txReq1.gasLimit)) : BigInt(500000);
-          const tx1 = await bscSigner.sendTransaction({
-            to: txReq1.to,
-            value: txValue,
-            data: txReq1.data,
-            gasLimit: txGasLimit,
-          });
-          setProgress(prev => [...prev, `   ✅ [${idx + 1}] BSC tx: ${tx1.hash.slice(0, 16)}...`]);
-          await tx1.wait(1);
-
-          // 轮询第一跳状态
-          setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? 'Bridging...' : '跨链中...'}`]);
-          const hop1Deadline = Date.now() + 5 * 60 * 1000;
-          let hop1Status = 'PENDING';
-          while (Date.now() < hop1Deadline && hop1Status !== 'DONE' && hop1Status !== 'FAILED') {
-            await new Promise(r => setTimeout(r, 6000));
-            try {
-              const s = await fetch(`${API_URL}/api/dex_mixer`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'status', tx_hash: tx1.hash, from_chain: 56, to_chain: leg.relay_chain_id })
-              });
-              const sd = await s.json();
-              hop1Status = sd.status || 'PENDING';
-            } catch {}
+          // ===== 执行中间跳（hops[i] → hops[i+1]）=====
+          let prevHop = firstHop;
+          const allTxs = [tx1.txHash];
+          for (let i = 1; i < hops.length; i++) {
+            const curHop = hops[i];
+            // 连接上一跳的 RPC，查余额
+            const prevProvider = new ethers.JsonRpcProvider(rpcMap[prevHop.relay_chain]);
+            const prevSigner = new ethers.Wallet(prevHop.relay_private_key, prevProvider);
+            // 等余额到账
+            let bal = BigInt(0);
+            for (let t = 0; t < 20; t++) {
+              bal = await prevProvider.getBalance(prevHop.relay_address);
+              if (bal > BigInt(0)) break;
+              await new Promise(r => setTimeout(r, 3000));
+            }
+            if (bal === BigInt(0)) throw new Error(`Hop${i} balance = 0 on ${prevHop.relay_chain}`);
+            const reserve = gasReserve[prevHop.relay_chain] || ethers.parseEther('0.0001');
+            const sendAmount = bal - reserve;
+            if (sendAmount <= BigInt(0)) throw new Error(`Hop${i} balance too low on ${prevHop.relay_chain}`);
+            const txN = await doHop(i + 1, prevHop.relay_chain_id, curHop.relay_chain_id, prevHop.relay_address, curHop.relay_address, prevSigner, sendAmount.toString());
+            allTxs.push(txN.txHash);
+            prevHop = curHop;
           }
-          if (hop1Status !== 'DONE') throw new Error(`Hop1 not done: ${hop1Status}`);
-          setProgress(prev => [...prev, `   ✅ [${idx + 1}] ${lang === 'en' ? 'POL arrived on Polygon' : 'POL 到达 Polygon'}`]);
 
-          // 查中继地址 POL 余额（原生币，不需要 ERC20 查询）
-          let nativeBalance = BigInt(0);
-          for (let t = 0; t < 15; t++) {
-            nativeBalance = await relayProvider.getBalance(relayAddress);
-            if (nativeBalance > BigInt(0)) break;
+          // ===== 执行最后一跳（最后一个 hop → BSC target）=====
+          const lastProvider = new ethers.JsonRpcProvider(rpcMap[prevHop.relay_chain]);
+          const lastSigner = new ethers.Wallet(prevHop.relay_private_key, lastProvider);
+          let lastBal = BigInt(0);
+          for (let t = 0; t < 20; t++) {
+            lastBal = await lastProvider.getBalance(prevHop.relay_address);
+            if (lastBal > BigInt(0)) break;
             await new Promise(r => setTimeout(r, 3000));
           }
-          if (nativeBalance === BigInt(0)) throw new Error('Relay POL balance = 0');
-
-          // ═══ 第二跳：Polygon POL → BSC BNB @ target（不需要 approve！）═══
-          // 预留 gas 费（Polygon gas 极便宜，预留 0.005 POL 足够）
-          const gasReserve = ethers.parseEther('0.005');
-          const sendAmount = nativeBalance - gasReserve;
-          if (sendAmount <= BigInt(0)) throw new Error('POL balance too low after gas reserve');
-
-          setProgress(prev => [...prev, `   🔀 [${idx + 1}] ${lang === 'en' ? 'Quote hop 2: Polygon POL → BSC BNB' : '报价第二跳：Polygon POL → BSC BNB'}`]);
-          const q2Resp = await fetch(`${API_URL}/api/dex_mixer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'quote',
-              from_chain: leg.relay_chain_id,
-              to_chain: 56,
-              from_token: '0x0000000000000000000000000000000000000000',
-              to_token: '0x0000000000000000000000000000000000000000',
-              from_amount: sendAmount.toString(),
-              from_address: relayAddress,
-              to_address: toAddress,
-              slippage: 0.03,
-            })
-          });
-          const q2Data = await q2Resp.json();
-          if (!q2Data.success) throw new Error(`Hop2 quote: ${q2Data.error}`);
-          const quote2 = q2Data.quote;
-          const txReq2 = quote2.transactionRequest;
-          if (!txReq2) throw new Error('Hop2: no transactionRequest');
-
-          // 发送第二跳
-          setProgress(prev => [...prev, `   🚀 [${idx + 1}] ${lang === 'en' ? 'Sending relay tx...' : '发送中继交易...'}`]);
-          const tx2Value = txReq2.value ? (typeof txReq2.value === 'string' && txReq2.value.startsWith('0x') ? BigInt(txReq2.value) : BigInt(txReq2.value)) : BigInt(0);
-          const tx2GasLimit = txReq2.gasLimit ? (typeof txReq2.gasLimit === 'string' && txReq2.gasLimit.startsWith('0x') ? BigInt(txReq2.gasLimit) : BigInt(txReq2.gasLimit)) : BigInt(800000);
-          const tx2 = await relaySigner.sendTransaction({
-            to: txReq2.to,
-            value: tx2Value,
-            data: txReq2.data,
-            gasLimit: tx2GasLimit,
-          });
-          setProgress(prev => [...prev, `   ✅ [${idx + 1}] Relay tx: ${tx2.hash.slice(0, 16)}...`]);
-          await tx2.wait(1);
-
-          // 轮询第二跳
-          setProgress(prev => [...prev, `   ⏳ [${idx + 1}] ${lang === 'en' ? 'Bridging back to BSC...' : '跨链回 BSC...'}`]);
-          const hop2Deadline = Date.now() + 5 * 60 * 1000;
-          let hop2Status = 'PENDING';
-          while (Date.now() < hop2Deadline && hop2Status !== 'DONE' && hop2Status !== 'FAILED') {
-            await new Promise(r => setTimeout(r, 6000));
-            try {
-              const s = await fetch(`${API_URL}/api/dex_mixer`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'status', tx_hash: tx2.hash, from_chain: leg.relay_chain_id, to_chain: 56 })
-              });
-              const sd = await s.json();
-              hop2Status = sd.status || 'PENDING';
-            } catch {}
-          }
-          if (hop2Status !== 'DONE') throw new Error(`Hop2 not done: ${hop2Status}`);
+          if (lastBal === BigInt(0)) throw new Error(`Final hop balance = 0 on ${prevHop.relay_chain}`);
+          const lastReserve = gasReserve[prevHop.relay_chain] || ethers.parseEther('0.0001');
+          const finalSend = lastBal - lastReserve;
+          if (finalSend <= BigInt(0)) throw new Error(`Final hop balance too low`);
+          const finalTx = await doHop(hops.length + 1, prevHop.relay_chain_id, 56, prevHop.relay_address, toAddress, lastSigner, finalSend.toString());
+          allTxs.push(finalTx.txHash);
 
           setProgress(prev => [...prev, `   🎉 [${idx + 1}] ${lang === 'en' ? 'Delivered to target!' : '已到达目标！'}`]);
-          return { leg_idx: idx, status: 'success', tx1: tx1.hash, tx2: tx2.hash, relay: leg.relay_chain };
+          return { leg_idx: idx, status: 'success', path: pathLabel, tx_hashes: allTxs };
         };
 
         // 并行执行所有 leg（Promise.allSettled）

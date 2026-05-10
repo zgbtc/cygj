@@ -35,13 +35,12 @@ logger = logging.getLogger(__name__)
 
 LIFI_API = "https://li.quest/v1"
 
-# 中继链：固定用 Polygon（gas 最便宜，POL 就是 gas 币）
-RELAY_CHAIN = {
-    'id': 'polygon',
-    'chain_id': 137,
-    'native': 'POL',
-    'native_token': '0x0000000000000000000000000000000000000000',  # 原生币
-}
+# 中继链：3 跳路径 BSC → Polygon → Arbitrum → BSC
+# 每跳都用原生币（就是 gas 币），不需要 approve 不需要预充 gas
+RELAY_HOPS = [
+    {'id': 'polygon',  'chain_id': 137,   'native': 'POL'},
+    {'id': 'arbitrum', 'chain_id': 42161, 'native': 'ETH'},
+]
 
 BSC_CHAIN_ID = 56
 NATIVE_TOKEN = '0x0000000000000000000000000000000000000000'
@@ -155,19 +154,32 @@ def build_plan(from_address: str, to_address: str, total_amount: float) -> dict:
     base_index = _get_next_index()
 
     legs = []
+    current_index = base_index
     for i, amt in enumerate(amounts):
         delay_seconds = 0 if i == 0 else random.randint(5, 30)
-        relay_addr = derive_relay_address(base_index + i)
+
+        # 每条 leg 有多个 hop，每个 hop 一个独立中继地址
+        # 随机打乱中继链顺序，增加路径多样性
+        hop_chains = RELAY_HOPS.copy()
+        random.shuffle(hop_chains)
+
+        hops = []
+        for hop_idx, hop_chain in enumerate(hop_chains):
+            relay_addr = derive_relay_address(current_index)
+            hops.append({
+                'hop_idx': hop_idx,
+                'relay_chain': hop_chain['id'],
+                'relay_chain_id': hop_chain['chain_id'],
+                'relay_address': relay_addr['address'],
+                'relay_private_key': relay_addr['private_key'],
+                'relay_index': relay_addr['index'],
+            })
+            current_index += 1
 
         legs.append({
             'leg_idx': i,
             'amount_bnb': amt,
-            'relay_chain': RELAY_CHAIN['id'],
-            'relay_chain_id': RELAY_CHAIN['chain_id'],
-            'relay_native_token': RELAY_CHAIN['native_token'],
-            'relay_address': relay_addr['address'],
-            'relay_private_key': relay_addr['private_key'],
-            'relay_index': relay_addr['index'],
+            'hops': hops,
             'delay_seconds': delay_seconds,
             'status': 'pending',
         })
@@ -176,9 +188,10 @@ def build_plan(from_address: str, to_address: str, total_amount: float) -> dict:
         f"{from_address}{to_address}{total_amount}{time.time()}".encode()
     ).hexdigest()[:12]
 
-    # 记录到数据库
+    # 记录所有中继地址到数据库
     for leg in legs:
-        _save_relay_usage(route_id, leg['relay_index'], leg['relay_address'], leg['relay_chain'])
+        for hop in leg.get('hops', []):
+            _save_relay_usage(route_id, hop['relay_index'], hop['relay_address'], hop['relay_chain'])
 
     return {
         'route_id': route_id,
