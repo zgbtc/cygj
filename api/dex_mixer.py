@@ -261,8 +261,8 @@ class handler(BaseHTTPRequestHandler):
                 total_amount = float(data.get('total_amount', 0))
                 if not to_address or total_amount <= 0:
                     return self._send(400, {'success': False, 'error': '缺少参数'})
-                if total_amount < 0.005:
-                    return self._send(400, {'success': False, 'error': '最少 0.005 BNB'})
+                if total_amount < 0.02:
+                    return self._send(400, {'success': False, 'error': 'Minimum 0.02 BNB required for multi-hop routing'})
                 plan = build_plan(from_address, to_address, total_amount)
                 return self._send(200, {'success': True, 'route': plan})
 

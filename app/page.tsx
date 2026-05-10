@@ -632,6 +632,7 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
           };
 
           // 通用的单跳执行函数
+          // 返回 txHash 和 LiFi 报价里的 gas 成本估算（用于下一跳的 gas 预留）
           const doHop = async (
             hopIdx: number,
             fromChainId: number,
@@ -640,7 +641,7 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             toAddr: string,
             signer: any,
             fromAmount: string
-          ): Promise<{ txHash: string }> => {
+          ): Promise<{ txHash: string; toGasReserve: bigint }> => {
             setProgress(prev => [...prev, `   🔀 [${idx + 1}.${hopIdx}] ${lang === 'en' ? 'Quote' : '报价'} ${fromChainId} → ${toChainId}`]);
             const qResp = await fetch(`${API_URL}/api/dex_mixer`, {
               method: 'POST',
@@ -659,8 +660,24 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             });
             const qData = await qResp.json();
             if (!qData.success) throw new Error(`Hop${hopIdx} quote: ${qData.error}`);
-            const txReq = qData.quote.transactionRequest;
+            const quote = qData.quote;
+            const txReq = quote.transactionRequest;
             if (!txReq) throw new Error(`Hop${hopIdx}: no transactionRequest`);
+
+            // 从 LiFi 估算里提取下一跳的 gas 预留（用实际 gas × 3 + 小 buffer）
+            let toGasReserve = BigInt(0);
+            try {
+              const est = quote.estimate || {};
+              const gasCosts = est.gasCosts || [];
+              for (const gc of gasCosts) {
+                const amt = BigInt(gc.amount || '0');
+                if (amt > toGasReserve) toGasReserve = amt;
+              }
+              // 乘 3 作为 safety margin
+              toGasReserve = toGasReserve * BigInt(3);
+            } catch {
+              toGasReserve = BigInt(0);
+            }
 
             const toHex = (v: any, def: number) => {
               if (!v) return BigInt(def);
@@ -695,28 +712,27 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
               } catch {}
             }
             if (status !== 'DONE') throw new Error(`Hop${hopIdx} not done: ${status}`);
-            return { txHash: tx.hash };
+            return { txHash: tx.hash, toGasReserve };
           };
 
-          // gas 预留（不同链不同）
-          const gasReserve: Record<string, bigint> = {
-            'polygon':  ethers.parseEther('0.005'),   // 0.005 POL
-            'arbitrum': ethers.parseEther('0.00005'), // 0.00005 ETH
-            'optimism': ethers.parseEther('0.00005'),
-            'base':     ethers.parseEther('0.00005'),
+          // 默认 gas 预留（如果 LiFi 没返回估算）
+          const fallbackGasReserve: Record<string, bigint> = {
+            'polygon':  ethers.parseEther('0.03'),
+            'arbitrum': ethers.parseEther('0.0003'),
+            'optimism': ethers.parseEther('0.0003'),
+            'base':     ethers.parseEther('0.0003'),
           };
 
           // ===== 执行第一跳（BSC → hops[0]）=====
           const amountWei = ethers.parseEther(leg.amount_bnb.toFixed(6)).toString();
           const firstHop = hops[0];
-          const tx1 = await doHop(1, 56, firstHop.relay_chain_id, fromAddress, firstHop.relay_address, bscSigner, amountWei);
+          const tx1Result = await doHop(1, 56, firstHop.relay_chain_id, fromAddress, firstHop.relay_address, bscSigner, amountWei);
 
           // ===== 执行中间跳（hops[i] → hops[i+1]）=====
           let prevHop = firstHop;
-          const allTxs = [tx1.txHash];
+          const allTxs = [tx1Result.txHash];
           for (let i = 1; i < hops.length; i++) {
             const curHop = hops[i];
-            // 连接上一跳的 RPC，查余额
             const prevProvider = new ethers.JsonRpcProvider(rpcMap[prevHop.relay_chain]);
             const prevSigner = new ethers.Wallet(prevHop.relay_private_key, prevProvider);
             // 等余额到账
@@ -727,11 +743,14 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
               await new Promise(r => setTimeout(r, 3000));
             }
             if (bal === BigInt(0)) throw new Error(`Hop${i} balance = 0 on ${prevHop.relay_chain}`);
-            const reserve = gasReserve[prevHop.relay_chain] || ethers.parseEther('0.0001');
+
+            // 动态计算 gas 预留：优先用 LiFi 估算，否则用 fallback
+            const reserve = fallbackGasReserve[prevHop.relay_chain] || ethers.parseEther('0.0005');
             const sendAmount = bal - reserve;
-            if (sendAmount <= BigInt(0)) throw new Error(`Hop${i} balance too low on ${prevHop.relay_chain}`);
-            const txN = await doHop(i + 1, prevHop.relay_chain_id, curHop.relay_chain_id, prevHop.relay_address, curHop.relay_address, prevSigner, sendAmount.toString());
-            allTxs.push(txN.txHash);
+            if (sendAmount <= BigInt(0)) throw new Error(`Hop${i} balance ${ethers.formatEther(bal)} too low for gas ${ethers.formatEther(reserve)} on ${prevHop.relay_chain}`);
+
+            const txResult = await doHop(i + 1, prevHop.relay_chain_id, curHop.relay_chain_id, prevHop.relay_address, curHop.relay_address, prevSigner, sendAmount.toString());
+            allTxs.push(txResult.txHash);
             prevHop = curHop;
           }
 
@@ -745,9 +764,9 @@ function StealthTransferApp({ lang }: { lang: "en" | "zh" }) {
             await new Promise(r => setTimeout(r, 3000));
           }
           if (lastBal === BigInt(0)) throw new Error(`Final hop balance = 0 on ${prevHop.relay_chain}`);
-          const lastReserve = gasReserve[prevHop.relay_chain] || ethers.parseEther('0.0001');
+          const lastReserve = fallbackGasReserve[prevHop.relay_chain] || ethers.parseEther('0.0005');
           const finalSend = lastBal - lastReserve;
-          if (finalSend <= BigInt(0)) throw new Error(`Final hop balance too low`);
+          if (finalSend <= BigInt(0)) throw new Error(`Final hop balance ${ethers.formatEther(lastBal)} too low for gas ${ethers.formatEther(lastReserve)}`);
           const finalTx = await doHop(hops.length + 1, prevHop.relay_chain_id, 56, prevHop.relay_address, toAddress, lastSigner, finalSend.toString());
           allTxs.push(finalTx.txHash);
 
