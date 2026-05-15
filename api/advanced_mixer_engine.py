@@ -260,6 +260,101 @@ class AdvancedMixerEngine:
         
         return plan
     
+    def _get_w3_for_chain(self, chain_name: str) -> Web3:
+        """获取指定链的 Web3 实例（跨链时切换链）"""
+        # 先查 config.py 的 CHAINS
+        if chain_name in CHAINS:
+            from transfer_engine import TransferEngine
+            te = TransferEngine(chain_name, use_proxy=False)
+            return te.w3
+
+        # 再查 lifi_bridge 的 RPC_URLS（polygon/arbitrum 等）
+        try:
+            from lifi_bridge import RPC_URLS
+            rpc_url = RPC_URLS.get(chain_name)
+            if rpc_url:
+                w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 10}))
+                if w3.is_connected():
+                    return w3
+        except Exception:
+            pass
+
+        raise ValueError(f"无法连接到链: {chain_name}")
+
+    def _get_balance_on_chain(self, chain_name: str, address: str) -> float:
+        """查询指定链上的余额"""
+        w3 = self._get_w3_for_chain(chain_name)
+        bal_wei = w3.eth.get_balance(Web3.to_checksum_address(address))
+        return float(w3.from_wei(bal_wei, 'ether'))
+
+    def _wait_for_crosschain_arrival(
+        self,
+        to_chain: str,
+        address: str,
+        min_amount: float,
+        timeout: int = 300,
+        poll_interval: int = 15
+    ) -> float:
+        """
+        等待跨链资金到账（轮询目标链余额）
+        返回实际到账金额，超时返回 0
+        """
+        logger.info(f"  ⏳ 等待跨链到账: {to_chain} {address[:10]}... (最多 {timeout}s)")
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                bal = self._get_balance_on_chain(to_chain, address)
+                if bal >= min_amount * 0.8:   # 允许 20% 滑点
+                    logger.info(f"  ✅ 跨链到账: {bal:.8f} on {to_chain}")
+                    return bal
+            except Exception as e:
+                logger.debug(f"  查询余额失败: {e}")
+            time.sleep(poll_interval)
+        logger.warning(f"  ⚠️ 跨链等待超时 ({timeout}s)，当前余额可能不足")
+        try:
+            return self._get_balance_on_chain(to_chain, address)
+        except Exception:
+            return 0.0
+
+    def _send_on_chain(
+        self,
+        chain_name: str,
+        from_private_key: str,
+        to_address: str,
+        amount: float,
+        gas_level: str = 'standard'
+    ) -> Dict:
+        """在指定链上发送交易（跨链后在目标链操作）"""
+        # 如果是当前链，直接用 self._send_transaction
+        if chain_name == self.chain or chain_name == self.chain.replace('_testnet', ''):
+            return self._send_transaction(from_private_key, to_address, amount, gas_level)
+
+        # 目标链：用 lifi_bridge 的 RPC
+        from lifi_bridge import RPC_URLS, CHAIN_IDS
+        rpc_url = RPC_URLS.get(chain_name)
+        if not rpc_url:
+            raise ValueError(f"不支持的链: {chain_name}")
+
+        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 10}))
+        account = Account.from_key(from_private_key)
+        from_address = account.address
+
+        amount_wei = w3.to_wei(amount, 'ether')
+        nonce = w3.eth.get_transaction_count(from_address, 'pending')
+        gas_price = w3.eth.gas_price
+
+        tx = {
+            'nonce': nonce,
+            'to': Web3.to_checksum_address(to_address),
+            'value': amount_wei,
+            'gas': 21000,
+            'gasPrice': gas_price,
+            'chainId': CHAIN_IDS[chain_name]
+        }
+        signed = w3.eth.account.sign_transaction(tx, from_private_key)
+        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        return {'tx_hash': tx_hash.hex(), 'from': from_address, 'to': to_address, 'amount': amount}
+
     def execute_mixing(
         self,
         plan: Dict,
@@ -517,80 +612,188 @@ class AdvancedMixerEngine:
                     'error': str(e)
                 })
         
-        # 阶段 2: 中间地址随机交叉跳转
-        logger.info(f"\n🔀 阶段 2: 中间地址随机交叉跳转")
-        
+        # 阶段 2: 按 crosschain_path 执行跳转（含真实跨链）
+        logger.info(f"\n🔀 阶段 2: 中间地址跳转（{'含跨链' if plan.get('crosschain_path') and plan['mode_config']['use_crosschain'] else '单链'}）")
+
+        crosschain_path = plan.get('crosschain_path')
+        use_real_crosschain = (
+            crosschain_path is not None
+            and plan['mode_config']['use_crosschain']
+            and self.bridge is not None
+            # 测试网不支持 LiFi，自动降级
+            and 'testnet' not in self.chain
+        )
+
+        if use_real_crosschain:
+            logger.info(f"  🌉 真实跨链模式已启用（LiFi）")
+        elif plan['mode_config']['use_crosschain']:
+            logger.info(f"  ⚠️ 测试网不支持 LiFi，降级为单链跳转")
+
         remaining_hops = num_hops - num_start_addresses
         active_addresses = list(range(num_start_addresses))
         hop_count = 0
-        
+
+        # 当前链状态（跨链后会切换）
+        current_chain = self.chain.replace('_testnet', '') if use_real_crosschain else self.chain
+
         while hop_count < remaining_hops and active_addresses:
+            # 查当前 hop 对应的路径条目
+            path_entry = None
+            if crosschain_path and hop_count < len(crosschain_path):
+                path_entry = crosschain_path[hop_count]
+
+            # ── 跨链跳 ──────────────────────────────────────────────
+            if use_real_crosschain and path_entry and path_entry['type'] == 'cross_chain':
+                from_chain_cc = path_entry['from_chain']
+                to_chain_cc   = path_entry['to_chain']
+
+                # 选一个有余额的地址作为跨链源
+                bridge_src = None
+                for idx in active_addresses:
+                    addr_info = intermediate_addresses[idx]
+                    try:
+                        bal = self._get_balance_on_chain(from_chain_cc, addr_info['address'])
+                        if bal > self._gas_reserve * 4:
+                            bridge_src = addr_info
+                            break
+                    except Exception:
+                        continue
+
+                if bridge_src is None:
+                    logger.warning(f"  ⚠️ 跨链跳 {hop_count+1}: 找不到有余额的地址，跳过")
+                    hop_count += 1
+                    continue
+
+                # 跨链目标地址：用下一个中间地址（同私钥在目标链上地址相同）
+                next_idx = (active_addresses[0] + 1) % num_hops
+                bridge_dst_info = intermediate_addresses[next_idx]
+
+                bridge_amount = self._get_balance_on_chain(from_chain_cc, bridge_src['address'])
+                bridge_amount = round(bridge_amount - self._gas_reserve * 4, 8)
+
+                if bridge_amount <= 0:
+                    hop_count += 1
+                    continue
+
+                logger.info(f"  🌉 跨链跳 {hop_count+1}: {from_chain_cc} → {to_chain_cc}  {bridge_amount:.6f}")
+                try:
+                    bridge_result = self.bridge.execute_bridge(
+                        from_chain=from_chain_cc,
+                        to_chain=to_chain_cc,
+                        from_private_key=bridge_src['private_key'],
+                        to_address=bridge_dst_info['address'],
+                        amount=bridge_amount
+                    )
+                    results.append({
+                        'stage': 2,
+                        'hop': hop_count + 1,
+                        'type': 'cross_chain',
+                        'from_chain': from_chain_cc,
+                        'to_chain': to_chain_cc,
+                        'from': bridge_src['address'],
+                        'to': bridge_dst_info['address'],
+                        'amount': bridge_amount,
+                        'status': 'success' if bridge_result.get('success') else 'failed',
+                        'tx_hash': bridge_result.get('tx_hash', ''),
+                        'error': bridge_result.get('error')
+                    })
+
+                    if bridge_result.get('success'):
+                        logger.info(f"  ✅ 跨链发送成功: {bridge_result['tx_hash'][:16]}...")
+                        # 等待目标链到账
+                        arrived = self._wait_for_crosschain_arrival(
+                            to_chain=to_chain_cc,
+                            address=bridge_dst_info['address'],
+                            min_amount=bridge_amount * 0.7,
+                            timeout=300,
+                            poll_interval=15
+                        )
+                        if arrived > 0:
+                            current_chain = to_chain_cc
+                            # 把目标地址加入活跃列表
+                            if next_idx not in active_addresses:
+                                active_addresses.append(next_idx)
+                        else:
+                            logger.warning(f"  ⚠️ 跨链到账超时，继续执行")
+                    else:
+                        logger.error(f"  ❌ 跨链失败: {bridge_result.get('error')}")
+
+                except Exception as e:
+                    logger.error(f"  ❌ 跨链异常: {e}")
+                    results.append({
+                        'stage': 2, 'hop': hop_count + 1, 'type': 'cross_chain',
+                        'status': 'failed', 'error': str(e)
+                    })
+
+                hop_count += 1
+                continue
+
+            # ── 同链跳 ──────────────────────────────────────────────
             from_idx = random.choice(active_addresses)
             available_targets = [i for i in range(num_hops) if i != from_idx]
             to_idx = random.choice(available_targets)
-            
+
             from_addr_info = intermediate_addresses[from_idx]
-            to_addr_info = intermediate_addresses[to_idx]
-            
+            to_addr_info   = intermediate_addresses[to_idx]
+
             from_addr = from_addr_info['address']
-            from_pk = from_addr_info['private_key']
-            to_addr = to_addr_info['address']
-            
-            balance = self.transfer_engine.get_balance(from_addr)
-            gas_reserve = self._gas_reserve * 2  # 阶段2会发出后续多笔，留两倍 buffer
-            
+            from_pk   = from_addr_info['private_key']
+            to_addr   = to_addr_info['address']
+
+            # 查余额（跨链后可能在非 self.chain 上）
+            try:
+                balance = self._get_balance_on_chain(current_chain, from_addr)
+            except Exception:
+                balance = self.transfer_engine.get_balance(from_addr)
+
+            gas_reserve = self._gas_reserve * 2
+
             if balance <= gas_reserve:
                 active_addresses.remove(from_idx)
                 continue
-            
-            amount = balance - gas_reserve
-            amount = round(amount, 8)
-            
+
+            amount = round(balance - gas_reserve, 8)
             if amount <= 0:
                 active_addresses.remove(from_idx)
                 continue
-            
+
             try:
-                result = self._send_transaction(
-                    from_private_key=from_pk,
-                    to_address=to_addr,
-                    amount=amount,
-                    gas_level=gas_level
-                )
-                
+                if use_real_crosschain and current_chain != self.chain:
+                    result = self._send_on_chain(current_chain, from_pk, to_addr, amount, gas_level)
+                else:
+                    result = self._send_transaction(from_pk, to_addr, amount, gas_level)
+
                 results.append({
                     'stage': 2,
                     'hop': hop_count + 1,
+                    'type': 'same_chain',
+                    'chain': current_chain,
                     'from': from_addr,
                     'to': to_addr,
                     'amount': amount,
                     'status': 'success',
                     'tx_hash': result['tx_hash']
                 })
-                
-                logger.info(f"  ✅ 跳转 {hop_count + 1}/{remaining_hops}: {from_addr[:10]}... → {to_addr[:10]}... ({amount:.8f} BNB)")
-                
+
+                logger.info(f"  ✅ 跳转 {hop_count+1}/{remaining_hops} [{current_chain}]: "
+                            f"{from_addr[:10]}... → {to_addr[:10]}... ({amount:.8f})")
+
                 active_addresses.remove(from_idx)
                 if to_idx not in active_addresses:
                     active_addresses.append(to_idx)
-                
+
                 hop_count += 1
-                
-                # 随机延迟
+
                 delay = random.uniform(*delay_range)
-                logger.info(f"     ⏳ 延迟 {delay:.1f} 秒...")
+                logger.info(f"     ⏳ 延迟 {delay:.1f}s...")
                 time.sleep(delay)
-                
+
             except Exception as e:
-                logger.error(f"  ❌ 跳转 {hop_count + 1} 失败: {e}")
+                logger.error(f"  ❌ 跳转 {hop_count+1} 失败: {e}")
                 results.append({
-                    'stage': 2,
-                    'hop': hop_count + 1,
-                    'from': from_addr,
-                    'to': to_addr,
-                    'amount': amount,
-                    'status': 'failed',
-                    'error': str(e)
+                    'stage': 2, 'hop': hop_count + 1, 'type': 'same_chain',
+                    'from': from_addr, 'to': to_addr, 'amount': amount,
+                    'status': 'failed', 'error': str(e)
                 })
                 active_addresses.remove(from_idx)
         
