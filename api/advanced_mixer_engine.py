@@ -638,9 +638,12 @@ class AdvancedMixerEngine:
 
         while hop_count < remaining_hops and active_addresses:
             # 查当前 hop 对应的路径条目
+            # crosschain_path 索引从 0 开始，对应 hop 1..N
+            # 阶段2从 num_start_addresses 跳开始，所以绝对索引 = num_start_addresses + hop_count
+            path_idx = num_start_addresses + hop_count
             path_entry = None
-            if crosschain_path and hop_count < len(crosschain_path):
-                path_entry = crosschain_path[hop_count]
+            if crosschain_path and path_idx < len(crosschain_path):
+                path_entry = crosschain_path[path_idx]
 
             # ── 跨链跳 ──────────────────────────────────────────────
             if use_real_crosschain and path_entry and path_entry['type'] == 'cross_chain':
