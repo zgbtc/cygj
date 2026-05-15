@@ -709,12 +709,15 @@ class AdvancedMixerEngine:
                             poll_interval=15
                         )
                         if arrived > 0:
+                            # 验证目标链 gas 是否充足（arrived 本身就是原生币，可以付 gas）
+                            logger.info(f"  ✅ 目标链余额: {arrived:.8f}，可用于后续 gas")
                             current_chain = to_chain_cc
                             # 把目标地址加入活跃列表
                             if next_idx not in active_addresses:
                                 active_addresses.append(next_idx)
                         else:
-                            logger.warning(f"  ⚠️ 跨链到账超时，继续执行")
+                            logger.warning(f"  ⚠️ 跨链到账超时，资金可能卡在 {to_chain_cc}")
+                            logger.warning(f"  💡 恢复方法: python recover_session.py <session_id> <your_address> --chain {to_chain_cc}")
                     else:
                         logger.error(f"  ❌ 跨链失败: {bridge_result.get('error')}")
 
