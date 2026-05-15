@@ -703,24 +703,80 @@ class AdvancedMixerEngine:
 
                     if bridge_result.get('success'):
                         logger.info(f"  ✅ 跨链发送成功: {bridge_result['tx_hash'][:16]}...")
-                        # 等待目标链到账
+                        # 等待目标链到账（最多 15 分钟，跨链通常 5-10 分钟）
                         arrived = self._wait_for_crosschain_arrival(
                             to_chain=to_chain_cc,
                             address=bridge_dst_info['address'],
                             min_amount=bridge_amount * 0.7,
-                            timeout=300,
-                            poll_interval=15
+                            timeout=900,       # 15 分钟
+                            poll_interval=20
                         )
                         if arrived > 0:
-                            # 验证目标链 gas 是否充足（arrived 本身就是原生币，可以付 gas）
-                            logger.info(f"  ✅ 目标链余额: {arrived:.8f}，可用于后续 gas")
+                            logger.info(f"  ✅ 目标链余额: {arrived:.8f} on {to_chain_cc}")
                             current_chain = to_chain_cc
-                            # 把目标地址加入活跃列表
                             if next_idx not in active_addresses:
                                 active_addresses.append(next_idx)
+
+                            # ── 如果目标链不是起始链，立即再跨链回起始链 ──────────
+                            # 确保资金不卡在其他链，用户最终收到 BNB
+                            base_chain = self.chain.replace('_testnet', '')
+                            if to_chain_cc != base_chain:
+                                logger.info(f"  🔄 自动跨链回 {base_chain}，避免资金卡在 {to_chain_cc}...")
+                                # 等几秒让余额稳定
+                                time.sleep(3)
+                                return_amount = self._get_balance_on_chain(to_chain_cc, bridge_dst_info['address'])
+                                # 预留目标链 gas（L2 链 gas 极低，预留 0.0001 ETH 足够）
+                                return_gas_reserve = 0.0001
+                                return_amount = round(return_amount - return_gas_reserve, 8)
+
+                                if return_amount > 0:
+                                    try:
+                                        return_result = self.bridge.execute_bridge(
+                                            from_chain=to_chain_cc,
+                                            to_chain=base_chain,
+                                            from_private_key=bridge_dst_info['private_key'],
+                                            to_address=bridge_dst_info['address'],  # 同地址，BSC 上继续混
+                                            amount=return_amount
+                                        )
+                                        results.append({
+                                            'stage': 2,
+                                            'hop': hop_count + 1,
+                                            'type': 'cross_chain_return',
+                                            'from_chain': to_chain_cc,
+                                            'to_chain': base_chain,
+                                            'from': bridge_dst_info['address'],
+                                            'to': bridge_dst_info['address'],
+                                            'amount': return_amount,
+                                            'status': 'success' if return_result.get('success') else 'failed',
+                                            'tx_hash': return_result.get('tx_hash', ''),
+                                            'error': return_result.get('error')
+                                        })
+                                        if return_result.get('success'):
+                                            logger.info(f"  ✅ 已跨链回 {base_chain}: {return_result['tx_hash'][:16]}...")
+                                            # 等待回程到账
+                                            back_arrived = self._wait_for_crosschain_arrival(
+                                                to_chain=base_chain,
+                                                address=bridge_dst_info['address'],
+                                                min_amount=return_amount * 0.7,
+                                                timeout=900,
+                                                poll_interval=20
+                                            )
+                                            if back_arrived > 0:
+                                                logger.info(f"  ✅ 回程到账: {back_arrived:.8f} BNB on {base_chain}")
+                                                current_chain = base_chain
+                                            else:
+                                                logger.warning(f"  ⚠️ 回程等待超时，资金可能仍在 {base_chain} 中间地址")
+                                        else:
+                                            logger.error(f"  ❌ 回程跨链失败: {return_result.get('error')}")
+                                            logger.warning(f"  💡 恢复: python recover_session.py <session_id> <addr> --chain {to_chain_cc}")
+                                    except Exception as re:
+                                        logger.error(f"  ❌ 回程跨链异常: {re}")
+                                        logger.warning(f"  💡 恢复: python recover_session.py <session_id> <addr> --chain {to_chain_cc}")
+                                else:
+                                    logger.warning(f"  ⚠️ 目标链余额不足以回程: {return_amount}")
                         else:
-                            logger.warning(f"  ⚠️ 跨链到账超时，资金可能卡在 {to_chain_cc}")
-                            logger.warning(f"  💡 恢复方法: python recover_session.py <session_id> <your_address> --chain {to_chain_cc}")
+                            logger.warning(f"  ⚠️ 跨链到账超时（15分钟），资金可能卡在 {to_chain_cc}")
+                            logger.warning(f"  💡 恢复: python recover_session.py <session_id> <addr> --chain {to_chain_cc}")
                     else:
                         logger.error(f"  ❌ 跨链失败: {bridge_result.get('error')}")
 
