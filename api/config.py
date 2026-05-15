@@ -1,4 +1,12 @@
 """配置文件"""
+import os
+
+# 系统固定中继助记词：所有中间地址从此派生，用户无需提供
+# 从环境变量读取，本地开发时在 .env.local 中配置
+RELAY_MNEMONIC = os.environ.get(
+    'RELAY_MNEMONIC',
+    'decline cluster album give brief scrap apart onion dust donor figure primary'
+)
 
 # 支持的链配置
 CHAINS = {

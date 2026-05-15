@@ -100,7 +100,11 @@ class handler(BaseHTTPRequestHandler):
             to_address = data.get('to_address')
             total_amount = data.get('total_amount')
             num_hops = data.get('num_hops', 100)
-            mnemonic = data.get('mnemonic')
+            # 中间地址助记词：始终使用系统固定助记词（RELAY_MNEMONIC）
+            # 固定助记词从环境变量读取，所有中间地址从此派生，确保资金永远可恢复
+            # 用户无需提供，前端也不需要传入
+            from config import RELAY_MNEMONIC
+            mnemonic = RELAY_MNEMONIC
             gas_level = data.get('gas_level', 'standard')
             # 极致隐私模式的路径类型：simple(2跨链) / standard(3跨链) / complex(4跨链)
             path_type = data.get('path_type', 'standard')
@@ -173,7 +177,8 @@ class handler(BaseHTTPRequestHandler):
                         to_address=to_address,
                         total_amount=float(total_amount),
                         hops_per_chain=int(num_hops) // max(len(ultimate_mixer.path) - 1, 1) if num_hops else 3,
-                        gas_level=gas_level
+                        gas_level=gas_level,
+                        session_id=session_id,
                     )
                     
                     # 更新会话状态

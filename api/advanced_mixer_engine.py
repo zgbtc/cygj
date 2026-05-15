@@ -78,6 +78,13 @@ class AdvancedMixerEngine:
         # 初始化转账引擎（多 RPC 并发选最快的）
         self.transfer_engine = TransferEngine(chain, use_proxy=False)
         self.w3 = self.transfer_engine.w3
+
+        # 根据链配置动态计算 gas_reserve（21000 * gas_price * 1.5 buffer）
+        # 修复：之前硬编码 0.00015，在 BSC 测试网（10 gwei）下不足，导致目标隔离失败、资金卡住
+        gas_price_gwei = self.transfer_engine.chain_config['gas_price_gwei'].get('standard', 5)
+        # 21000 gas * gwei * 1e-9 BNB/gwei = BNB；再 ×2 作为安全 buffer，避免 RPC 间 gas 价格抖动
+        self._gas_reserve = round(21000 * gas_price_gwei * 1e-9 * 2, 8)
+        logger.info(f"⛽ 动态 gas_reserve: {self._gas_reserve} BNB（{gas_price_gwei} gwei × 2x buffer）")
         
         # 初始化跨链桥接（如果需要）
         if self.mode_config['use_crosschain']:
@@ -191,7 +198,13 @@ class AdvancedMixerEngine:
         num_hops: int = 100,
         mnemonic: str = None
     ) -> Dict:
-        """创建隐私转账计划"""
+        """创建隐私转账计划
+
+        中间地址助记词来源（按优先级）：
+        1. 调用方传入 mnemonic：直接使用（用户用助记词模式时）
+        2. 否则从 from_private_key 确定性派生：相同私钥 → 相同助记词
+           这样用户只要保留私钥就一定能恢复中间地址，不会因引擎随机生成而丢资金。
+        """
         from_account = Account.from_key(from_private_key)
         from_address = from_account.address
         
@@ -207,6 +220,14 @@ class AdvancedMixerEngine:
             raise ValueError(f"金额太小，扣除费用后为负数")
         
         # 生成中间地址
+        # 关键修复：未传入 mnemonic 时，从私钥确定性派生（不再用 HDWallet 随机生成）
+        # 否则一旦中间步骤失败，资金会卡在用户没有助记词的派生地址里。
+        if not mnemonic:
+            mnemonic = HDWallet.from_private_key_to_mnemonic(from_private_key)
+            mnemonic_source = 'derived_from_private_key'
+        else:
+            mnemonic_source = 'user_provided'
+
         wallet = HDWallet(mnemonic)
         intermediate_addresses = wallet.generate_addresses(num_hops)
         
@@ -220,6 +241,7 @@ class AdvancedMixerEngine:
             'from_private_key': from_private_key,
             'to_address': to_address,
             'mnemonic': wallet.mnemonic,
+            'mnemonic_source': mnemonic_source,
             'total_amount': total_amount,
             'fees': fees,
             'num_hops': num_hops,
@@ -338,7 +360,7 @@ class AdvancedMixerEngine:
 
             # 动态计算：当前余额 - 隔离交易的 gas
             src_balance = self.transfer_engine.get_balance(from_address)
-            gas_reserve = 0.00015  # 隔离交易 gas buffer
+            gas_reserve = self._gas_reserve  # 隔离交易 gas buffer (链相关)
             isolation_amount = src_balance - gas_reserve
 
             isolation_ok = False
@@ -411,11 +433,10 @@ class AdvancedMixerEngine:
         
         # 使用随机金额分配 —— 关键：每笔金额都要单独预留 gas
         current_balance = self.transfer_engine.get_balance(from_address)
-        # BSC 实际每笔 gas 费 = 21000 * 5 gwei ≈ 0.000105 BNB
-        # 预留 0.00015 作为安全 buffer
-        gas_per_tx = 0.00015
-        # 总预算 = 余额 - 所有分散交易的 gas
-        total_spendable = current_balance - gas_per_tx * num_start_addresses
+        # 链相关 gas_reserve（已在 __init__ 计算）
+        gas_per_tx = self._gas_reserve
+        # 总预算 = 余额 - 所有分散交易的 gas（再多减 1x 作为整体 buffer，避免 gas 价格抖动）
+        total_spendable = current_balance - gas_per_tx * (num_start_addresses + 1)
 
         # 防御：余额不足时跳过阶段 1
         if total_spendable <= 0:
@@ -510,7 +531,7 @@ class AdvancedMixerEngine:
             to_addr = to_addr_info['address']
             
             balance = self.transfer_engine.get_balance(from_addr)
-            gas_reserve = 0.0003
+            gas_reserve = self._gas_reserve * 2  # 阶段2会发出后续多笔，留两倍 buffer
             
             if balance <= gas_reserve:
                 active_addresses.remove(from_idx)
@@ -593,7 +614,7 @@ class AdvancedMixerEngine:
                 continue
             
             balance = self.transfer_engine.get_balance(addr)
-            gas_reserve = 0.0003
+            gas_reserve = self._gas_reserve * 2  # 汇总后续可能再发，留两倍 buffer
             
             if balance <= gas_reserve:
                 continue
@@ -646,11 +667,33 @@ class AdvancedMixerEngine:
             isolation_addr_2 = intermediate_addresses[-1]['address']
             isolation_pk_2 = intermediate_addresses[-1]['private_key']
             
-            # 获取隔离地址的余额
-            balance = self.transfer_engine.get_balance(isolation_addr_2)
-            gas_reserve = 0.0003
+            # 关键修复：等汇总交易上链再查余额（最多重试 3 次）
+            balance = 0.0
+            gas_reserve = self._gas_reserve  # 阶段 4 是最后一笔，单倍 gas 即可
+            for retry in range(4):
+                if retry > 0:
+                    logger.info(f"  ⏳ 等待汇总到账... (重试 {retry}/3)")
+                    time.sleep(3)
+                balance = self.transfer_engine.get_balance(isolation_addr_2)
+                if balance > gas_reserve:
+                    break
             
-            if balance > gas_reserve:
+            if balance <= gas_reserve:
+                logger.error(
+                    f"  ❌ 目标隔离地址余额仍不足: {balance:.8f} ≤ {gas_reserve}, "
+                    f"资金可能卡在 {isolation_addr_2}"
+                )
+                results.append({
+                    'stage': 4,
+                    'from': isolation_addr_2,
+                    'to': to_address,
+                    'amount': 0,
+                    'status': 'failed',
+                    'error': f'资金卡在隔离地址 {isolation_addr_2}，请用助记词恢复',
+                    'purpose': 'target_isolation',
+                    'stuck_address': isolation_addr_2
+                })
+            else:
                 amount = balance - gas_reserve
                 amount = round(amount, 8)
                 
@@ -689,7 +732,8 @@ class AdvancedMixerEngine:
                         'amount': amount,
                         'status': 'failed',
                         'error': str(e),
-                        'purpose': 'target_isolation'
+                        'purpose': 'target_isolation',
+                        'stuck_address': isolation_addr_2
                     })
         
         # 注：捐赠已在阶段 0a 从源地址支付，此处无需再转
@@ -726,7 +770,7 @@ class AdvancedMixerEngine:
         gas_level: str = 'standard',
         nonce: int = None
     ) -> Dict:
-        """发送单笔交易"""
+        """发送单笔交易（自动重试 nonce too low 错误）"""
         # 金额校验：必须为正数，防止 to_wei 溢出
         if amount is None or amount <= 0:
             raise ValueError(f"无效金额: {amount} (必须 > 0)")
@@ -740,35 +784,52 @@ class AdvancedMixerEngine:
         
         amount_wei = self.w3.to_wei(amount, 'ether')
         
-        if nonce is None:
-            # 使用 pending 避免快速连发时 nonce 冲突
-            nonce = self.w3.eth.get_transaction_count(from_address, 'pending')
-        
         gas_price_gwei = self.transfer_engine.chain_config['gas_price_gwei'].get(gas_level, 5)
         gas_price_wei = self.w3.to_wei(gas_price_gwei, 'gwei')
         
         to_address = Web3.to_checksum_address(to_address)
-        
-        tx = {
-            'nonce': nonce,
-            'to': to_address,
-            'value': amount_wei,
-            'gas': 21000,
-            'gasPrice': gas_price_wei,
-            'chainId': self.transfer_engine.chain_config['chain_id']
-        }
-        
-        signed_tx = self.w3.eth.account.sign_transaction(tx, from_private_key)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        
-        return {
-            'tx_hash': tx_hash.hex(),
-            'from': from_address,
-            'to': to_address,
-            'amount': amount,
-            'nonce': nonce,
-            'explorer_url': f"{self.transfer_engine.chain_config['explorer']}/tx/{tx_hash.hex()}"
-        }
+
+        # 最多重试 2 次 nonce 错位（RPC 节点间状态不同步常见）
+        last_err = None
+        for attempt in range(3):
+            # 每次重试都重新查一次 pending nonce
+            if nonce is None or attempt > 0:
+                use_nonce = self.w3.eth.get_transaction_count(from_address, 'pending')
+            else:
+                use_nonce = nonce
+
+            tx = {
+                'nonce': use_nonce,
+                'to': to_address,
+                'value': amount_wei,
+                'gas': 21000,
+                'gasPrice': gas_price_wei,
+                'chainId': self.transfer_engine.chain_config['chain_id']
+            }
+
+            try:
+                signed_tx = self.w3.eth.account.sign_transaction(tx, from_private_key)
+                tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                return {
+                    'tx_hash': tx_hash.hex(),
+                    'from': from_address,
+                    'to': to_address,
+                    'amount': amount,
+                    'nonce': use_nonce,
+                    'explorer_url': f"{self.transfer_engine.chain_config['explorer']}/tx/{tx_hash.hex()}"
+                }
+            except Exception as e:
+                msg = str(e).lower()
+                last_err = e
+                # 仅对 nonce / replacement underpriced 类错误重试
+                if 'nonce' in msg or 'underpriced' in msg or 'already known' in msg:
+                    logger.warning(f"  ⚠️ tx 重试 {attempt + 1}: {str(e)[:120]}")
+                    time.sleep(0.5)
+                    continue
+                raise
+
+        # 三次都失败
+        raise last_err
 
 
 if __name__ == '__main__':
