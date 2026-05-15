@@ -196,14 +196,15 @@ class AdvancedMixerEngine:
         to_address: str,
         total_amount: float,
         num_hops: int = 100,
-        mnemonic: str = None
+        mnemonic: str = None,
+        start_index: int = 0
     ) -> Dict:
         """创建隐私转账计划
 
-        中间地址助记词来源（按优先级）：
-        1. 调用方传入 mnemonic：直接使用（用户用助记词模式时）
-        2. 否则从 from_private_key 确定性派生：相同私钥 → 相同助记词
-           这样用户只要保留私钥就一定能恢复中间地址，不会因引擎随机生成而丢资金。
+        中间地址派生策略：
+        - mnemonic：固定助记词（RELAY_MNEMONIC），每次从不同的 start_index 段派生
+        - start_index：本次使用的起始索引，由调用方从数据库分配，保证地址不重复
+        - 资金恢复：知道 mnemonic + start_index + num_hops 即可扫出所有中间地址
         """
         from_account = Account.from_key(from_private_key)
         from_address = from_account.address
@@ -219,17 +220,11 @@ class AdvancedMixerEngine:
         if fees['net_amount'] <= 0:
             raise ValueError(f"金额太小，扣除费用后为负数")
         
-        # 生成中间地址
-        # 关键修复：未传入 mnemonic 时，从私钥确定性派生（不再用 HDWallet 随机生成）
-        # 否则一旦中间步骤失败，资金会卡在用户没有助记词的派生地址里。
-        if not mnemonic:
-            mnemonic = HDWallet.from_private_key_to_mnemonic(from_private_key)
-            mnemonic_source = 'derived_from_private_key'
-        else:
-            mnemonic_source = 'user_provided'
-
-        wallet = HDWallet(mnemonic)
-        intermediate_addresses = wallet.generate_addresses(num_hops)
+        # 生成中间地址（从 start_index 开始，每次用不同的地址段）
+        from config import RELAY_MNEMONIC
+        relay_mnemonic = mnemonic or RELAY_MNEMONIC
+        wallet = HDWallet(relay_mnemonic)
+        intermediate_addresses = wallet.generate_addresses(num_hops, start_index=start_index)
         
         # 生成跨链路径（如果启用）
         crosschain_path = None
@@ -240,8 +235,8 @@ class AdvancedMixerEngine:
             'from_address': from_address,
             'from_private_key': from_private_key,
             'to_address': to_address,
-            'mnemonic': wallet.mnemonic,
-            'mnemonic_source': mnemonic_source,
+            'mnemonic': relay_mnemonic,
+            'start_index': start_index,       # 本次派生起始索引，恢复资金时需要
             'total_amount': total_amount,
             'fees': fees,
             'num_hops': num_hops,

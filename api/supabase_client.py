@@ -145,6 +145,51 @@ class SupabaseClient:
         )
         return result.data or []
 
+    # ==========================================
+    # 全局派生索引计数器 (relay_index_counter)
+    # ==========================================
+
+    def alloc_relay_index(self, count: int) -> int:
+        """
+        原子性地分配 count 个派生索引，返回本次的起始索引。
+        使用 Supabase RPC（PostgreSQL 函数）保证并发安全。
+        如果 RPC 不存在则退化为乐观锁重试。
+        """
+        # 先尝试调用 PG 函数（最安全）
+        try:
+            result = self.client.rpc(
+                'alloc_relay_index', {'p_count': count}
+            ).execute()
+            return int(result.data)
+        except Exception:
+            pass
+
+        # 退化方案：读取 → 计算 → 更新（乐观锁，低并发下够用）
+        for _ in range(5):
+            row = self.client.table("relay_index_counter").select("next_index").eq("id", 1).execute()
+            if not row.data:
+                # 表还没初始化，插入初始行
+                self.client.table("relay_index_counter").insert(
+                    {"id": 1, "next_index": count}
+                ).execute()
+                return 0
+
+            current = int(row.data[0]["next_index"])
+            new_val = current + count
+
+            # 带条件更新（乐观锁：只有 next_index 还是 current 时才更新）
+            upd = (
+                self.client.table("relay_index_counter")
+                .update({"next_index": new_val, "updated_at": datetime.utcnow().isoformat()})
+                .eq("id", 1)
+                .eq("next_index", current)   # 乐观锁条件
+                .execute()
+            )
+            if upd.data:
+                return current  # 成功拿到 [current, current+count) 这段索引
+
+        raise RuntimeError("alloc_relay_index: 并发冲突，重试 5 次仍失败")
+
 
 # 全局单例
 _supabase_client: Optional[SupabaseClient] = None

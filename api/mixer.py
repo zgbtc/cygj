@@ -100,12 +100,31 @@ class handler(BaseHTTPRequestHandler):
             to_address = data.get('to_address')
             total_amount = data.get('total_amount')
             num_hops = data.get('num_hops', 100)
-            # 中间地址助记词：始终使用系统固定助记词（RELAY_MNEMONIC）
-            # 固定助记词从环境变量读取，所有中间地址从此派生，确保资金永远可恢复
-            # 用户无需提供，前端也不需要传入
-            from config import RELAY_MNEMONIC
-            mnemonic = RELAY_MNEMONIC
+            # 中间地址派生：固定助记词 + 每次不同的起始索引
+            # - 固定助记词（RELAY_MNEMONIC）：资金永远可恢复
+            # - 起始索引从数据库原子分配：每次用不同地址段，链上无法关联
+            mnemonic = None  # create_mixing_plan 内部会用 RELAY_MNEMONIC
             gas_level = data.get('gas_level', 'standard')
+
+            # 安全检查：Supabase 不可用时拒绝执行
+            # 原因：start_index 必须持久化，否则资金一旦卡住无法恢复
+            if not SUPABASE_AVAILABLE:
+                self._send_json(503, {
+                    'success': False,
+                    'error': '数据库不可用，无法安全执行混币（派生索引无法持久化，资金可能无法恢复）'
+                })
+                return
+
+            # 从数据库原子分配本次起始索引
+            try:
+                db = get_supabase_client()
+                start_index = db.alloc_relay_index(int(num_hops) + 2)  # +2 for isolation addrs
+            except Exception as e:
+                self._send_json(500, {
+                    'success': False,
+                    'error': f'派生索引分配失败: {e}'
+                })
+                return
             # 极致隐私模式的路径类型：simple(2跨链) / standard(3跨链) / complex(4跨链)
             path_type = data.get('path_type', 'standard')
 
@@ -238,10 +257,11 @@ class handler(BaseHTTPRequestHandler):
                     to_address=to_address,
                     total_amount=float(total_amount),
                     num_hops=int(num_hops),
-                    mnemonic=mnemonic
+                    mnemonic=mnemonic,
+                    start_index=start_index
                 )
                 
-                # 保存会话到数据库
+                # 保存会话到数据库（含 start_index，用于资金恢复）
                 if SUPABASE_AVAILABLE:
                     try:
                         asyncio.run(self._save_session(
@@ -312,9 +332,14 @@ class handler(BaseHTTPRequestHandler):
     
     async def _save_session(self, session_id, user_key, mode, chain, from_address, 
                            to_address, total_amount, num_hops, plan):
-        """保存会话到数据库"""
+        """保存会话到数据库（含 start_index，用于资金恢复）"""
         db = get_supabase_client()
         
+        fees = plan.get('fees', {})
+        # 把 start_index 存进 fees jsonb，方便恢复时定位地址段
+        fees['relay_start_index'] = plan.get('start_index', 0)
+        fees['relay_num_hops'] = num_hops
+
         session_data = {
             "id": session_id,
             "user_key": user_key,
@@ -325,7 +350,10 @@ class handler(BaseHTTPRequestHandler):
             "total_amount": total_amount,
             "num_hops": num_hops,
             "total_steps": len(plan.get('steps', [])),
-            "fees": plan.get('fees', {}),
+            "fees": fees,
+            # mnemonic_enc 存 "RELAY:{start_index}" 标记，表示用固定助记词从该索引派生
+            # 真正的助记词在服务器环境变量 RELAY_MNEMONIC 里，不落库
+            "mnemonic_enc": f"RELAY:{plan.get('start_index', 0)}",
             "status": "running"
         }
         
