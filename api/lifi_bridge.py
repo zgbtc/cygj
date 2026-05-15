@@ -190,9 +190,9 @@ class LiFiBridge:
             tx = {
                 'from': from_address,
                 'to': Web3.to_checksum_address(tx_request['to']),
-                'value': int(tx_request.get('value', 0)),
+                'value': int(tx_request.get('value', 0), 16) if isinstance(tx_request.get('value', 0), str) else int(tx_request.get('value', 0)),
                 'data': tx_request.get('data', '0x'),
-                'gas': int(tx_request.get('gasLimit', 500000)),
+                'gas': int(tx_request.get('gasLimit', '0x7A120'), 16) if isinstance(tx_request.get('gasLimit', 500000), str) else int(tx_request.get('gasLimit', 500000)),
                 'gasPrice': w3.eth.gas_price,
                 'nonce': nonce,
                 'chainId': from_chain_id
