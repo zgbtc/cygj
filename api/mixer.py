@@ -100,29 +100,16 @@ class handler(BaseHTTPRequestHandler):
             to_address = data.get('to_address')
             total_amount = data.get('total_amount')
             num_hops = data.get('num_hops', 100)
-            # 中间地址派生：固定助记词 + 每次不同的起始索引
-            # - 固定助记词（RELAY_MNEMONIC）：资金永远可恢复
-            # - 起始索引从数据库原子分配：每次用不同地址段，链上无法关联
-            mnemonic = None  # create_mixing_plan 内部会用 RELAY_MNEMONIC
+            # 中间地址派生：每次随机生成助记词，先存库再执行
+            # - 随机助记词：每次地址完全不同，链上无规律可循
+            # - 先存库：助记词持久化后才执行，资金绝不会丢
             gas_level = data.get('gas_level', 'standard')
 
             # 安全检查：Supabase 不可用时拒绝执行
-            # 原因：start_index 必须持久化，否则资金一旦卡住无法恢复
             if not SUPABASE_AVAILABLE:
                 self._send_json(503, {
                     'success': False,
-                    'error': '数据库不可用，无法安全执行混币（派生索引无法持久化，资金可能无法恢复）'
-                })
-                return
-
-            # 从数据库原子分配本次起始索引
-            try:
-                db = get_supabase_client()
-                start_index = db.alloc_relay_index(int(num_hops) + 2)  # +2 for isolation addrs
-            except Exception as e:
-                self._send_json(500, {
-                    'success': False,
-                    'error': f'派生索引分配失败: {e}'
+                    'error': '数据库不可用，无法安全执行混币（助记词无法持久化，资金可能无法恢复）'
                 })
                 return
             # 极致隐私模式的路径类型：simple(2跨链) / standard(3跨链) / complex(4跨链)
@@ -238,8 +225,6 @@ class handler(BaseHTTPRequestHandler):
             # ==========================================
             # 快速模式：单链混币
             # ==========================================
-            # Serverless 环境警告：长时间运行任务不适合在此运行
-            # 这里仅做前置验证与计划创建。真实执行应由后端任务队列或本地节点完成。
             try:
                 mixer = AdvancedMixerEngine(chain, mode=mode)
             except Exception as e:
@@ -247,37 +232,47 @@ class handler(BaseHTTPRequestHandler):
                     'success': False,
                     'error': f"引擎初始化失败: {type(e).__name__}: {str(e)}",
                     'trace': traceback.format_exc(),
-                    'hint': 'Serverless 环境无法长时间连接外部 RPC/代理，建议本地部署或使用自建后端'
                 })
                 return
 
             try:
+                # ── 第一步：随机生成助记词 ──────────────────────────────
+                # 每次全新随机，链上地址无规律可循，隐私性最强
+                from hd_wallet import HDWallet as _HDW
+                relay_mnemonic = _HDW.generate_random_mnemonic(12)
+
+                # ── 第二步：先存库，存库失败则拒绝执行 ──────────────────
+                # 原则：助记词必须持久化后才能动用户的钱，绝不反过来
+                session_id = generate_session_id()
+                try:
+                    asyncio.run(self._save_mnemonic_session(
+                        session_id=session_id,
+                        user_key=user_key,
+                        mode=mode,
+                        chain=chain,
+                        from_address=from_address,
+                        to_address=to_address,
+                        total_amount=float(total_amount),
+                        num_hops=int(num_hops),
+                        relay_mnemonic=relay_mnemonic,
+                    ))
+                except Exception as e:
+                    self._send_json(503, {
+                        'success': False,
+                        'error': f'助记词存库失败，拒绝执行混币以防资金丢失: {e}'
+                    })
+                    return
+
+                # ── 第三步：创建计划（助记词已安全落库）────────────────
                 plan = mixer.create_mixing_plan(
                     from_private_key=from_private_key,
                     to_address=to_address,
                     total_amount=float(total_amount),
                     num_hops=int(num_hops),
-                    mnemonic=mnemonic,
-                    start_index=start_index
+                    mnemonic=relay_mnemonic,
+                    start_index=0   # 随机助记词每次从 0 开始即可，本身就不重复
                 )
-                
-                # 保存会话到数据库（含 start_index，用于资金恢复）
-                if SUPABASE_AVAILABLE:
-                    try:
-                        asyncio.run(self._save_session(
-                            session_id=session_id,
-                            user_key=user_key,
-                            mode=mode,
-                            chain=chain,
-                            from_address=from_address,
-                            to_address=to_address,
-                            total_amount=float(total_amount),
-                            num_hops=int(num_hops),
-                            plan=plan
-                        ))
-                    except Exception as e:
-                        print(f"⚠️ 保存会话失败: {e}")
-                
+
             except Exception as e:
                 self._send_json(500, {
                     'success': False,
@@ -289,6 +284,15 @@ class handler(BaseHTTPRequestHandler):
             try:
                 result = mixer.execute_mixing(plan, gas_level=gas_level)
                 
+                # 更新会话状态为 running（执行开始）→ done/failed
+                if SUPABASE_AVAILABLE:
+                    try:
+                        asyncio.run(get_supabase_client().update_session(
+                            session_id, {'status': 'running', 'fees': plan.get('fees', {})}
+                        ))
+                    except Exception:
+                        pass  # 状态更新失败不影响执行
+
                 # 更新会话状态
                 if SUPABASE_AVAILABLE and result.get('success'):
                     try:
@@ -330,6 +334,31 @@ class handler(BaseHTTPRequestHandler):
                 'trace': traceback.format_exc()
             })
     
+    async def _save_mnemonic_session(self, session_id, user_key, mode, chain,
+                                     from_address, to_address, total_amount,
+                                     num_hops, relay_mnemonic):
+        """
+        第一步存库：把随机助记词持久化到数据库。
+        这个方法必须成功，才能继续执行混币。
+        助记词明文存储（service_role 权限，RLS 关闭，外部无法直接读取）。
+        """
+        db = get_supabase_client()
+        session_data = {
+            "id": session_id,
+            "user_key": user_key,
+            "mode": mode,
+            "chain": chain,
+            "from_address": from_address,
+            "to_address": to_address,
+            "total_amount": total_amount,
+            "num_hops": num_hops,
+            "total_steps": 0,
+            "fees": {},
+            "mnemonic_enc": relay_mnemonic,   # 随机助记词明文，用于资金恢复
+            "status": "pending"               # pending → running → done/failed
+        }
+        await db.create_session(session_data)
+
     async def _save_session(self, session_id, user_key, mode, chain, from_address, 
                            to_address, total_amount, num_hops, plan):
         """保存会话到数据库（含 start_index，用于资金恢复）"""

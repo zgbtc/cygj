@@ -220,9 +220,20 @@ class AdvancedMixerEngine:
         if fees['net_amount'] <= 0:
             raise ValueError(f"金额太小，扣除费用后为负数")
         
-        # 生成中间地址（从 start_index 开始，每次用不同的地址段）
-        from config import RELAY_MNEMONIC
-        relay_mnemonic = mnemonic or RELAY_MNEMONIC
+        # 生成中间地址（从 start_index 开始，保证每次用不同的地址段）
+        # mnemonic 由调用方传入（已存库的随机助记词），不在引擎内部生成
+        # 这样引擎不持有任何状态，助记词的生命周期完全由 mixer.py 管理
+        if not mnemonic:
+            # 兜底：不应该走到这里，mixer.py 必须传入已存库的助记词
+            # 如果真的没传，生成随机的但会打印警告
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "⚠️ create_mixing_plan 未收到助记词，随机生成。"
+                "此助记词未存库，资金可能无法恢复！"
+            )
+            relay_mnemonic = HDWallet().mnemonic
+        else:
+            relay_mnemonic = mnemonic
         wallet = HDWallet(relay_mnemonic)
         intermediate_addresses = wallet.generate_addresses(num_hops, start_index=start_index)
         
