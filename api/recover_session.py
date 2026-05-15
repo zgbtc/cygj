@@ -55,18 +55,21 @@ CHAIN_CONFIG = {
         'rpc': 'https://arb1.arbitrum.io/rpc',
         'chain_id': 42161,
         'gas_price_gwei': 0.1,
+        'gas_limit': 300000,   # Arbitrum 每笔转账需要更多 gas（L2 overhead）
         'explorer': 'https://arbiscan.io/tx/'
     },
     'optimism': {
         'rpc': 'https://mainnet.optimism.io',
         'chain_id': 10,
         'gas_price_gwei': 0.001,
+        'gas_limit': 300000,
         'explorer': 'https://optimistic.etherscan.io/tx/'
     },
     'base': {
         'rpc': 'https://mainnet.base.org',
         'chain_id': 8453,
         'gas_price_gwei': 0.001,
+        'gas_limit': 300000,
         'explorer': 'https://basescan.org/tx/'
     },
 }
@@ -107,14 +110,22 @@ def scan_and_recover(
     destination = Web3.to_checksum_address(destination)
 
     wallet = HDWallet(mnemonic)
-    # 多扫 20 个地址，防止 start_index 偏移导致遗漏
     addresses = wallet.generate_addresses(num_hops + 20, start_index=0)
 
-    gas_price_wei = w3.to_wei(cfg['gas_price_gwei'], 'gwei')
-    gas_cost = 21000 * gas_price_wei
+    # 动态查询实际 gas price（比配置值更准确）
+    try:
+        actual_gas_price_wei = w3.eth.gas_price
+        # 加 20% buffer
+        gas_price_wei = int(actual_gas_price_wei * 1.2)
+    except Exception:
+        gas_price_wei = w3.to_wei(cfg['gas_price_gwei'], 'gwei')
+
+    gas_limit = cfg.get('gas_limit', 21000)
+    gas_cost = gas_limit * gas_price_wei
     gas_cost_ether = float(w3.from_wei(gas_cost, 'ether'))
 
     print(f"\n🔍 扫描 {len(addresses)} 个地址 on {chain}...")
+    print(f"   gas price: {w3.from_wei(gas_price_wei, 'gwei'):.4f} gwei  gas limit: {gas_limit}")
     print(f"   gas 费用/笔: {gas_cost_ether:.8f}")
 
     found_count = 0
@@ -136,7 +147,7 @@ def scan_and_recover(
             continue  # 余额不够付 gas，跳过
 
         found_count += 1
-        send_amount = bal - gas_cost_ether * 1.2  # 留 1.2x gas buffer
+        send_amount = bal - gas_cost_ether * 1.5  # 留 1.5x gas buffer
         send_amount = round(send_amount, 8)
 
         print(f"  💰 发现余额: {addr[:10]}... = {bal:.8f}  可归集: {send_amount:.8f}")
@@ -152,7 +163,7 @@ def scan_and_recover(
                 'nonce': nonce,
                 'to': destination,
                 'value': w3.to_wei(send_amount, 'ether'),
-                'gas': 21000,
+                'gas': gas_limit,
                 'gasPrice': gas_price_wei,
                 'chainId': cfg['chain_id']
             }
