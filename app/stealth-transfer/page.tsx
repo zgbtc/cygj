@@ -8,6 +8,7 @@ import { Shield, Wallet, ArrowRightLeft, TrendingUp, Fuel, Image, Globe } from "
 export default function StealthTransferPage() {
   const [lang, setLang] = useState<"en" | "zh">("en");
   const [chain, setChain] = useState("bsc_testnet");
+  const [mode, setMode] = useState<"fast" | "ultimate">("fast");
   const [inputType, setInputType] = useState<"private_key" | "mnemonic">("private_key");
   const [privateKey, setPrivateKey] = useState("");
   const [mnemonic, setMnemonic] = useState("");
@@ -39,6 +40,11 @@ export default function StealthTransferPage() {
       tipText: "Test on testnet first",
       selectNetwork: "Select Network",
       mainnetWarning: "⚠️ Mainnet: Use ≥0.1 BNB to avoid gas depletion",
+      privacyMode: "Privacy Mode",
+      fastMode: "⚡ Fast",
+      fastModeDesc: "3-5 min, single chain",
+      ultimateMode: "🔒 Ultimate",
+      ultimateModeDesc: "10-20 min, cross-chain",
       inputMethod: "Input Method *",
       privateKey: "Private Key",
       mnemonic: "Mnemonic",
@@ -98,6 +104,11 @@ export default function StealthTransferPage() {
       tipText: "建议先在测试网测试",
       selectNetwork: "选择网络",
       mainnetWarning: "⚠️ 主网建议使用 ≥0.1 BNB，避免 Gas 费用消耗完所有金额",
+      privacyMode: "隐私模式",
+      fastMode: "⚡ 快速模式",
+      fastModeDesc: "3-5分钟，单链混币",
+      ultimateMode: "🔒 极致隐私",
+      ultimateModeDesc: "10-20分钟，跨链混币",
       inputMethod: "输入方式 *",
       privateKey: "私钥",
       mnemonic: "助记词",
@@ -160,6 +171,7 @@ export default function StealthTransferPage() {
       
       const requestBody: any = {
         chain,
+        mode,
         input_type: inputType,
         to_address: toAddress,
         total_amount: parseFloat(amount),
@@ -372,6 +384,39 @@ export default function StealthTransferPage() {
                     {t[lang].mainnetWarning}
                   </p>
                 )}
+              </div>
+
+              {/* Privacy Mode Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t[lang].privacyMode}
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setMode("fast")}
+                    className={`flex-1 p-3 rounded-lg border-2 transition text-left ${
+                      mode === "fast"
+                        ? "border-purple-600 bg-purple-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="font-semibold text-sm">{t[lang].fastMode}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{t[lang].fastModeDesc}</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("ultimate")}
+                    className={`flex-1 p-3 rounded-lg border-2 transition text-left ${
+                      mode === "ultimate"
+                        ? "border-indigo-600 bg-indigo-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="font-semibold text-sm">{t[lang].ultimateMode}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{t[lang].ultimateModeDesc}</div>
+                  </button>
+                </div>
               </div>
 
               {/* Input Type Selection */}

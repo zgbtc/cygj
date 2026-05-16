@@ -144,86 +144,12 @@ class handler(BaseHTTPRequestHandler):
             user_key = hash_address(from_address)
 
             # ==========================================
-            # 极致隐私模式：使用真实跨链（LiFi）
+            # 极致隐私模式旧引擎（已废弃，现在统一走 AdvancedMixerEngine）
             # ==========================================
-            if mode == 'ultimate':
-                if not ULTIMATE_MIXER_AVAILABLE:
-                    self._send_json(500, {
-                        'success': False,
-                        'error': '极致隐私混币器不可用'
-                    })
-                    return
-                
-                try:
-                    # 初始化极致隐私混币器
-                    ultimate_mixer = UltimatePrivacyMixer(
-                        path_type=path_type,
-                        verify_ssl=True  # 生产环境启用 SSL 验证
-                    )
-                    
-                    # 保存会话到数据库
-                    if SUPABASE_AVAILABLE:
-                        try:
-                            asyncio.run(self._save_ultimate_session(
-                                session_id=session_id,
-                                user_key=user_key,
-                                chain=chain,
-                                from_address=from_address,
-                                to_address=to_address,
-                                total_amount=float(total_amount),
-                                path=ultimate_mixer.path,
-                                path_type=path_type
-                            ))
-                        except Exception as e:
-                            print(f"⚠️ 保存会话失败: {e}")
-                    
-                    # 执行真实跨链混币
-                    result = ultimate_mixer.execute_mixing(
-                        from_private_key=from_private_key,
-                        to_address=to_address,
-                        total_amount=float(total_amount),
-                        hops_per_chain=int(num_hops) // max(len(ultimate_mixer.path) - 1, 1) if num_hops else 3,
-                        gas_level=gas_level,
-                        session_id=session_id,
-                    )
-                    
-                    # 更新会话状态
-                    if SUPABASE_AVAILABLE:
-                        try:
-                            status = 'done' if result.get('success') else 'failed'
-                            asyncio.run(get_supabase_client().update_session(
-                                session_id,
-                                {'status': status}
-                            ))
-                        except Exception as e:
-                            print(f"⚠️ 更新会话失败: {e}")
-                    
-                    # 添加 session_id 和转换格式
-                    response = self._format_ultimate_response(result, session_id)
-                    self._send_json(200, response)
-                    return
-                    
-                except Exception as e:
-                    # 标记会话失败
-                    if SUPABASE_AVAILABLE:
-                        try:
-                            asyncio.run(get_supabase_client().update_session(
-                                session_id,
-                                {'status': 'failed'}
-                            ))
-                        except:
-                            pass
-                    
-                    self._send_json(500, {
-                        'success': False,
-                        'error': f"极致隐私混币失败: {type(e).__name__}: {str(e)}",
-                        'trace': traceback.format_exc(),
-                        'session_id': session_id
-                    })
-                    return
+            # if mode == 'ultimate': ... （已移除，下方统一处理）
 
             # ==========================================
-            # 快速模式：单链混币
+            # 快速模式 / 极致隐私模式：统一走 AdvancedMixerEngine
             # ==========================================
             try:
                 mixer = AdvancedMixerEngine(chain, mode=mode)
