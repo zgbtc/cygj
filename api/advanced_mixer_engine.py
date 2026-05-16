@@ -932,7 +932,9 @@ class AdvancedMixerEngine:
                 continue
             
             balance = self.transfer_engine.get_balance(addr)
-            gas_reserve = self._gas_reserve * 2  # 汇总后续可能再发，留两倍 buffer
+            # 阶段3是汇总的最后一笔，只需单倍 gas_reserve（不会再从这个地址发出）
+            # 之前用 *2 太保守，导致每个中间地址都残留约 0.00015-0.0003 BNB
+            gas_reserve = self._gas_reserve
             
             if balance <= gas_reserve:
                 continue
