@@ -534,10 +534,12 @@ class AdvancedMixerEngine:
         
         # 使用随机金额分配 —— 关键：每笔金额都要单独预留 gas
         current_balance = self.transfer_engine.get_balance(from_address)
-        # 链相关 gas_reserve（已在 __init__ 计算）
         gas_per_tx = self._gas_reserve
-        # 总预算 = 余额 - 所有分散交易的 gas（再多减 1x 作为整体 buffer，避免 gas 价格抖动）
         total_spendable = current_balance - gas_per_tx * (num_start_addresses + 1)
+
+        # Ultimate 跨链模式：保证至少一个地址有足够余额用于跨链
+        # LiFi 最小跨链约 $2 ≈ 0.003 BNB（按 $650/BNB 估算）
+        LIFI_MIN_BNB = 0.004  # 略高于最小值，留足余量
 
         # 防御：余额不足时跳过阶段 1
         if total_spendable <= 0:
@@ -561,6 +563,23 @@ class AdvancedMixerEngine:
             # 最后防御：确保所有金额 > 0
             start_amounts = [a for a in start_amounts if a > 0]
             num_start_addresses = len(start_amounts)
+
+            # Ultimate 跨链模式：确保至少一个地址有足够的跨链金额
+            # 如果所有分散金额都低于 LIFI_MIN_BNB，把第一个地址的金额调大
+            if (plan['mode_config']['use_crosschain']
+                    and 'testnet' not in self.chain
+                    and total_spendable >= LIFI_MIN_BNB * 2
+                    and start_amounts
+                    and max(start_amounts) < LIFI_MIN_BNB):
+                # 重新分配：第一个地址拿 60%（保证足够跨链），其余均分 40%
+                bridge_reserve = min(total_spendable * 0.6, total_spendable - LIFI_MIN_BNB * (num_start_addresses - 1))
+                bridge_reserve = max(bridge_reserve, LIFI_MIN_BNB)
+                remainder = total_spendable - bridge_reserve
+                other_amounts = [round(remainder / max(num_start_addresses - 1, 1), 8)] * max(num_start_addresses - 1, 0)
+                start_amounts = [round(bridge_reserve, 8)] + other_amounts
+                start_amounts = [a for a in start_amounts if a > 0]
+                num_start_addresses = len(start_amounts)
+                logger.info(f"  🔄 Ultimate 跨链模式：调整分散金额，最大份额 {start_amounts[0]:.6f} BNB（确保跨链）")
         
         # 为阶段 1 预先获取 nonce，后续自增避免冲突
         stage1_nonce = self.w3.eth.get_transaction_count(from_address, 'pending')
@@ -650,13 +669,14 @@ class AdvancedMixerEngine:
                 from_chain_cc = path_entry['from_chain']
                 to_chain_cc   = path_entry['to_chain']
 
-                # 选一个有余额的地址作为跨链源
+                # 选一个有余额的地址作为跨链源（余额 > LiFi 最小跨链金额）
+                LIFI_MIN = 0.003  # BSC 主网 LiFi 最小约 $2
                 bridge_src = None
                 for idx in active_addresses:
                     addr_info = intermediate_addresses[idx]
                     try:
                         bal = self._get_balance_on_chain(from_chain_cc, addr_info['address'])
-                        if bal > self._gas_reserve * 4:
+                        if bal > LIFI_MIN:
                             bridge_src = addr_info
                             break
                     except Exception:
