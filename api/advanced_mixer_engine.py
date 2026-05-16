@@ -703,13 +703,13 @@ class AdvancedMixerEngine:
 
                     if bridge_result.get('success'):
                         logger.info(f"  ✅ 跨链发送成功: {bridge_result['tx_hash'][:16]}...")
-                        # 等待目标链到账（最多 15 分钟，跨链通常 5-10 分钟）
+                        # 等待目标链到账（最多 5 分钟，NearIntents 通常 30-60 秒）
                         arrived = self._wait_for_crosschain_arrival(
                             to_chain=to_chain_cc,
                             address=bridge_dst_info['address'],
                             min_amount=bridge_amount * 0.7,
-                            timeout=900,       # 15 分钟
-                            poll_interval=20
+                            timeout=300,       # 5 分钟
+                            poll_interval=10   # 每 10 秒查一次
                         )
                         if arrived > 0:
                             logger.info(f"  ✅ 目标链余额: {arrived:.8f} on {to_chain_cc}")
@@ -758,8 +758,8 @@ class AdvancedMixerEngine:
                                                 to_chain=base_chain,
                                                 address=bridge_dst_info['address'],
                                                 min_amount=return_amount * 0.7,
-                                                timeout=900,
-                                                poll_interval=20
+                                                timeout=300,
+                                                poll_interval=10
                                             )
                                             if back_arrived > 0:
                                                 logger.info(f"  ✅ 回程到账: {back_arrived:.8f} BNB on {base_chain}")
