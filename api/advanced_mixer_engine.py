@@ -811,7 +811,34 @@ class AdvancedMixerEngine:
                 continue
 
             # ── 同链跳 ──────────────────────────────────────────────
-            from_idx = random.choice(active_addresses)
+            # 检查接下来 3 跳内是否有跨链跳，如果有，保留最大余额的地址给跨链
+            upcoming_cross = False
+            if use_real_crosschain and crosschain_path:
+                for lookahead in range(1, 4):
+                    future_idx = num_start_addresses + hop_count + lookahead
+                    if future_idx < len(crosschain_path) and crosschain_path[future_idx]['type'] == 'cross_chain':
+                        upcoming_cross = True
+                        break
+
+            # 找最大余额的地址索引，跨链前不消耗它
+            reserved_idx = None
+            if upcoming_cross and len(active_addresses) > 1:
+                max_bal = -1
+                for idx in active_addresses:
+                    try:
+                        b = self._get_balance_on_chain(current_chain, intermediate_addresses[idx]['address'])
+                        if b > max_bal:
+                            max_bal = b
+                            reserved_idx = idx
+                    except Exception:
+                        pass
+
+            # 从活跃地址中排除保留地址
+            selectable = [i for i in active_addresses if i != reserved_idx] if reserved_idx is not None else active_addresses
+            if not selectable:
+                selectable = active_addresses  # 没得选就不保留
+
+            from_idx = random.choice(selectable)
             available_targets = [i for i in range(num_hops) if i != from_idx]
             to_idx = random.choice(available_targets)
 
