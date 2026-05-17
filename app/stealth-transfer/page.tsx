@@ -7,6 +7,7 @@ import { Shield, Wallet, ArrowRightLeft, TrendingUp, Globe } from "lucide-react"
 
 // ─── 类型定义 ────────────────────────────────────────────────
 interface StepResult {
+  success: boolean;
   step_idx: number;
   next_idx: number;
   done: boolean;
@@ -28,12 +29,16 @@ interface StepResult {
     chain?: string;
     from_chain?: string;
     to_chain?: string;
-    bridge_status?: string; // PENDING / DONE / FAILED
+    bridge_status?: string; // PENDING / DONE / FAILED / EMERGENCY_FALLBACK
     requires_polling?: boolean;
     explorer?: string;
     explorer_from?: string;
     explorer_to?: string;
     early_exit?: boolean;
+    type?: string;           // emergency_send 等
+    emergency?: boolean;
+    emergency_chain?: string;
+    emergency_reason?: string;
   };
 }
 
@@ -283,11 +288,11 @@ export default function StealthTransferPage() {
       try {
         const saved = JSON.parse(savedRaw);
         if (saved.plan && saved.stepIdx < saved.plan.total_steps) {
-          plan = saved.plan;
+          plan = saved.plan as Plan;
           resumeStepIdx = saved.stepIdx;
           isResume = true;
           setPlanRef(plan);
-          setTotalSteps(plan.total_steps);
+          setTotalSteps((plan as Plan).total_steps);
           addLog(
             lang === "zh"
               ? `🔄 检测到未完成的执行，从第 ${resumeStepIdx + 1} 步继续...`
@@ -329,9 +334,9 @@ export default function StealthTransferPage() {
           return;
         }
 
-        plan = planData.plan;
+        plan = planData.plan as Plan;
         setPlanRef(plan);
-        setTotalSteps(plan.total_steps);
+        setTotalSteps((plan as Plan).total_steps);
 
         // 保存 plan 到 localStorage（不存私钥，只存步骤结构和助记词）
         if (typeof window !== "undefined") {
