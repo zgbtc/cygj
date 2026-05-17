@@ -45,12 +45,14 @@ CHAIN_ID_MAP = {
 }
 
 # 各链原生代币 gas 预留（ether 单位）
+# L2 链（Base/Arbitrum/Optimism）gas price 极低但需要足够 buffer
+# 用动态计算：gas_price * gas_limit * 3（3倍 buffer 防止 L2 overhead）
 GAS_RESERVE = {
     'bsc': 0.00015,
-    'polygon': 0.02,      # POL gas 很便宜但为 buffer 多留点
-    'arbitrum': 0.0001,   # ETH L2
-    'optimism': 0.0001,
-    'base': 0.0001,
+    'polygon': 0.005,
+    'arbitrum': 0.0005,
+    'optimism': 0.0005,
+    'base': 0.0005,
     'avalanche': 0.003,
     'ethereum': 0.002,
     'bsc_testnet': 0.00015
@@ -184,6 +186,13 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     else:
         # 固定金额（如 donation）：也做一次轮询，防止上一步 tx 还没广播到此 RPC 节点
         balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=15)
+
+    # 重新用最新 gas price（_wait_balance 可能换了 RPC 节点）
+    try:
+        gas_price = int(w3.eth.gas_price * 1.2)
+    except Exception:
+        pass
+    gas_cost_wei = 21000 * gas_price
 
     # 软退出检查：如果剩余余额不够撑完后续所有跳，直接发到最终 target
     # 只对 hop 类型的步骤做检查（source_isolation / donation 不做）
@@ -337,7 +346,15 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
     if step['amount'] == 'max' and balance_wei == 0:
         balance_wei, w3_from = _wait_balance(w3_from, from_chain, from_address, timeout=35)
     balance = float(w3_from.from_wei(balance_wei, 'ether'))
-    gas_reserve = GAS_RESERVE.get(from_chain, 0.0002) * 3  # 跨链 gas 更高
+    # 跨链 gas 预留：用动态 gas price 计算，3倍 buffer（跨链合约比普通转账贵）
+    try:
+        dyn_gas_price = w3_from.eth.gas_price
+        # 跨链合约约 200000 gas，3倍 buffer
+        gas_reserve = float(w3_from.from_wei(dyn_gas_price * 200000 * 3, 'ether'))
+        # 最低保证 GAS_RESERVE 配置值
+        gas_reserve = max(gas_reserve, GAS_RESERVE.get(from_chain, 0.0002))
+    except Exception:
+        gas_reserve = GAS_RESERVE.get(from_chain, 0.0002) * 3
 
     if step['amount'] == 'max':
         amount = balance - gas_reserve
