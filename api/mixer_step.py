@@ -172,6 +172,9 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
     extra_buffer = 5000 if chain in l2_chains else 2000
 
+    # 步骤目的（用于决定等待时间和 early_exit 判断）
+    purpose = step.get('purpose', '')
+
     pk = get_private_key(plan, step['from_key_idx'])
     account = Account.from_key(pk)
     from_address = account.address
@@ -189,8 +192,12 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     gas_cost_wei = 21000 * gas_price
 
     # 读余额；若是 max 模式且暂时为 0（RPC 滞后），轮询重试
+    # cross_back/cross_back_final 后资金从 L2 桥回，可能需要 3-5 分钟才到账
+    purpose = step.get('purpose', '')
     if step['amount'] == 'max':
-        balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=35)
+        # 跨链回程后的第一个 hop：等待时间延长到 5 分钟
+        wait_timeout = 300 if purpose == 'hop' else 35
+        balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=wait_timeout)
     else:
         # 固定金额（如 donation）：也做一次轮询，防止上一步 tx 还没广播到此 RPC 节点
         balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=15)
@@ -204,7 +211,6 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
 
     # 软退出检查：如果剩余余额不够撑完后续所有跳，直接发到最终 target
     # 只对 hop 类型的步骤做检查（source_isolation / donation 不做）
-    purpose = step.get('purpose', '')
     is_hop = purpose in ('hop', 'target_isolation_in', 'cross_out', 'cross_back')
     if is_hop and step_idx >= 0 and _should_early_exit(balance_wei, gas_cost_wei, plan, step_idx):
         final_target = Web3.to_checksum_address(plan['to_address'])
@@ -354,10 +360,14 @@ def _emergency_send_to_target(w3, chain: str, pk: str, from_address: str,
                                balance_wei: int, plan: dict, reason: str = '') -> dict:
     """
     紧急降级：跨链失败时，把当前链上的余额直接发到 plan['to_address']。
-    用于 cross_back 失败时保证资金不丢失。
+
+    重要：plan['to_address'] 是原链（BSC）上的地址。
+    如果当前 chain 是 L2（Base/Arbitrum），资金会发到 L2 上的同一地址。
+    这是正确的——用户在 L2 上也能收到，只是需要手动桥回 BSC。
+    比资金卡在中间地址要好得多。
     """
     import logging
-    logging.getLogger(__name__).warning(f"⚠️ 紧急降级发送到目标地址: {reason}")
+    logging.getLogger(__name__).warning(f"⚠️ 紧急降级发送到目标地址 [{chain}]: {reason}")
 
     target = Web3.to_checksum_address(plan['to_address'])
     chain_id = CHAIN_ID_MAP.get(chain, 56)
@@ -367,8 +377,10 @@ def _emergency_send_to_target(w3, chain: str, pk: str, from_address: str,
     except Exception:
         gas_price = w3.to_wei(5, 'gwei')
 
+    l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
+    extra_buffer = 5000 if chain in l2_chains else 2000
     gas_cost = 21000 * gas_price
-    send_wei = balance_wei - gas_cost - 2000
+    send_wei = balance_wei - gas_cost - extra_buffer
 
     if send_wei <= 0:
         return {
@@ -378,6 +390,44 @@ def _emergency_send_to_target(w3, chain: str, pk: str, from_address: str,
             'amount': 0,
             'chain': chain,
             'type': 'emergency_send',
+            'bridge_status': 'FAILED',
+            'emergency': True,
+            'emergency_reason': reason,
+            'error': f'余额不足以支付 gas（余额={balance_wei} wei，gas={gas_cost} wei）'
+        }
+
+    nonce = w3.eth.get_transaction_count(from_address, 'pending')
+    tx = {
+        'nonce': nonce,
+        'to': target,
+        'value': send_wei,
+        'gas': 21000,
+        'gasPrice': gas_price,
+        'chainId': chain_id
+    }
+    signed = w3.eth.account.sign_transaction(tx, pk)
+    raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
+    tx_hash = w3.eth.send_raw_transaction(raw).hex()
+
+    try:
+        w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+    except Exception:
+        pass
+
+    amount = float(w3.from_wei(send_wei, 'ether'))
+    return {
+        'tx_hash': tx_hash,
+        'from': from_address,
+        'to': target,
+        'amount': amount,
+        'chain': chain,
+        'type': 'emergency_send',
+        'bridge_status': 'EMERGENCY_FALLBACK',
+        'emergency': True,
+        'emergency_reason': reason,
+        'emergency_chain': chain,  # 告知前端资金在哪条链上
+        'explorer': explorer_url(chain, tx_hash)
+    }
             'bridge_status': 'FAILED',
             'emergency': True,
             'emergency_reason': reason,

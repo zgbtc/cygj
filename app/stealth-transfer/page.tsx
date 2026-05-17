@@ -274,7 +274,7 @@ export default function StealthTransferPage() {
     }
 
     // ── 检查 localStorage 是否有未完成的 plan ──────────────
-    let plan: Plan;
+    let plan: Plan | null = null;
     let resumeStepIdx = 0;
 
     const savedRaw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
@@ -333,9 +333,10 @@ export default function StealthTransferPage() {
         setPlanRef(plan);
         setTotalSteps(plan.total_steps);
 
-        // 保存 plan 到 localStorage（防止页面关闭丢失进度）
+        // 保存 plan 到 localStorage（不存私钥，只存步骤结构和助记词）
         if (typeof window !== "undefined") {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ plan, stepIdx: 0 }));
+          const safeplan = { ...plan, from_private_key: "[REDACTED]" };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ plan: safeplan, stepIdx: 0 }));
         }
 
         addLog(
@@ -360,8 +361,8 @@ export default function StealthTransferPage() {
         );
         addLog(
           lang === "zh"
-            ? `🔑 助记词（请保存，资金恢复用）: ${plan.mnemonic}`
-            : `🔑 Mnemonic (save this for recovery): ${plan.mnemonic}`,
+            ? `🔑 助记词（请截图保存，资金恢复用）: ${plan.mnemonic}`
+            : `🔑 Mnemonic (screenshot this for recovery): ${plan.mnemonic}`,
           "warn"
         );
       } catch (e: any) {
@@ -369,6 +370,13 @@ export default function StealthTransferPage() {
         setPhase("error");
         return;
       }
+    }
+
+    // plan 必须已赋值
+    if (!plan) {
+      addLog(lang === "zh" ? "❌ 内部错误：plan 未初始化" : "❌ Internal error: plan not initialized", "error");
+      setPhase("error");
+      return;
     }
 
     // Step 2: 逐步执行
@@ -430,13 +438,22 @@ export default function StealthTransferPage() {
 
         // 紧急降级：跨链失败但资金已发到目标地址
         if (r.type === "emergency_send" || r.bridge_status === "EMERGENCY_FALLBACK") {
+          const emergencyChain = (r as any).emergency_chain || step.from_chain || "unknown";
           addLog(
             lang === "zh"
-              ? `  ⚠️ 跨链失败，已自动将资金发送到目标地址（${r.amount?.toFixed(6)} BNB）`
-              : `  ⚠️ Bridge failed, funds sent directly to target (${r.amount?.toFixed(6)} BNB)`,
+              ? `  ⚠️ 跨链失败，已自动将资金发送到目标地址（${r.amount?.toFixed(6)} ${emergencyChain.toUpperCase()} 原生币）`
+              : `  ⚠️ Bridge failed, funds sent to target address (${r.amount?.toFixed(6)} ${emergencyChain.toUpperCase()} native token)`,
             "warn",
             r.explorer || undefined
           );
+          if (emergencyChain !== "bsc" && emergencyChain !== chain) {
+            addLog(
+              lang === "zh"
+                ? `  ℹ️ 注意：资金在 ${emergencyChain.toUpperCase()} 链上，需要手动桥回 BSC`
+                : `  ℹ️ Note: Funds are on ${emergencyChain.toUpperCase()}, you may need to bridge back to BSC`,
+              "warn"
+            );
+          }
           setFinalAmount(r.amount ?? null);
           setProgress(100);
           setPhase("done");

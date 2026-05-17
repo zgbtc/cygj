@@ -105,11 +105,12 @@ class handler(BaseHTTPRequestHandler):
             # - 先存库：助记词持久化后才执行，资金绝不会丢
             gas_level = data.get('gas_level', 'standard')
 
-            # 安全检查：Supabase 不可用时拒绝执行
-            if not SUPABASE_AVAILABLE:
+            # 安全检查：Supabase 不可用时，fast 模式仍可执行（私钥在用户本地）
+            # ultimate 模式需要数据库持久化助记词，不可用时拒绝
+            if not SUPABASE_AVAILABLE and mode == 'ultimate':
                 self._send_json(503, {
                     'success': False,
-                    'error': '数据库不可用，无法安全执行混币（助记词无法持久化，资金可能无法恢复）'
+                    'error': '数据库不可用，极致隐私模式无法安全执行（助记词无法持久化）。请使用快速模式或稍后重试。'
                 })
                 return
             # 极致隐私模式的路径类型：simple(2跨链) / standard(3跨链) / complex(4跨链)
