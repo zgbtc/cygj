@@ -352,6 +352,7 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
     amount_wei = w3_from.to_wei(amount, 'ether')
 
     # 1. 获取 LiFi 报价
+    # 注意：allowExchanges 不能传字符串，直接不传让 LiFi 自动选最优路由
     quote_params = {
         'fromChain': CHAIN_ID_MAP[from_chain],
         'toChain': CHAIN_ID_MAP[to_chain],
@@ -360,8 +361,7 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
         'fromAmount': str(amount_wei),
         'fromAddress': from_address,
         'toAddress': to_address,
-        'slippage': 0.03,
-        'allowExchanges': 'lifi',
+        'slippage': '0.03',
     }
     resp = requests.get(f"{LIFI_API}/quote", params=quote_params, timeout=15)
     if resp.status_code != 200:
