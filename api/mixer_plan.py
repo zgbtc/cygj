@@ -70,11 +70,25 @@ def build_plan(
     # 极致模式的跨链费
     crosschain_fee = 0.006 if mode == 'ultimate' else 0
 
+    # LiFi 最小跨链金额（约 $2，按 BNB $600 估算）
+    LIFI_MIN_BNB = 0.004
+
     total_fee = service_fee + total_gas_estimate + crosschain_fee
     net_amount = total_amount - total_fee
 
     if net_amount <= 0:
         raise ValueError(f"金额过小：扣除费用（{total_fee:.6f}）后为负")
+
+    # ultimate 模式：检查跨链后余额是否满足 LiFi 最小值
+    # 跨链时余额约为 total_amount - service_fee - 部分gas
+    if mode == 'ultimate':
+        estimated_at_bridge = total_amount - service_fee - gas_per_tx * (num_hops // 3 + 2)
+        if estimated_at_bridge < LIFI_MIN_BNB:
+            raise ValueError(
+                f"金额过小：ultimate 模式跨链时预计余额 {estimated_at_bridge:.6f} BNB，"
+                f"低于 LiFi 最小值 {LIFI_MIN_BNB} BNB（约 $2.4）。"
+                f"请使用 fast 模式或增加转账金额至 ≥ 0.05 BNB"
+            )
 
     # 生成中间地址
     wallet = HDWallet(mnemonic)

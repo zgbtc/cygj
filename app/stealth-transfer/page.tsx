@@ -264,6 +264,8 @@ export default function StealthTransferPage() {
     }
 
     // ── Ultimate 模式：mixer_plan + mixer_step 逐步执行 ────
+    const STORAGE_KEY = `ultimate_plan_${toAddress.slice(2, 10)}`;
+
     if (chain.includes("testnet")) {
       addLog(lang === "zh"
         ? "⚠️ 极致隐私模式需要主网（跨链依赖 LiFi），测试网将降级为单链模式"
@@ -271,76 +273,121 @@ export default function StealthTransferPage() {
         "warn");
     }
 
-    // Step 1: 规划
-    setPhase("planning");
-    addLog(lang === "zh" ? "📋 规划路由，生成中间地址..." : "📋 Planning route, generating addresses...", "info");
-
+    // ── 检查 localStorage 是否有未完成的 plan ──────────────
     let plan: Plan;
-    try {
-      const planBody: any = {
-        mode, chain,
-        input_type: inputType,
-        to_address: toAddress,
-        total_amount: parseFloat(amount),
-        num_hops: numHops,
-      };
-      if (inputType === "private_key") planBody.from_private_key = privateKey;
-      else planBody.from_mnemonic = mnemonic;
+    let resumeStepIdx = 0;
 
-      const planRes = await fetch(`${API_URL}/api/mixer_plan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(planBody)
-      });
-      const planData = await planRes.json();
+    const savedRaw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
+    let isResume = false;
+    if (savedRaw) {
+      try {
+        const saved = JSON.parse(savedRaw);
+        if (saved.plan && saved.stepIdx < saved.plan.total_steps) {
+          plan = saved.plan;
+          resumeStepIdx = saved.stepIdx;
+          isResume = true;
+          setPlanRef(plan);
+          setTotalSteps(plan.total_steps);
+          addLog(
+            lang === "zh"
+              ? `🔄 检测到未完成的执行，从第 ${resumeStepIdx + 1} 步继续...`
+              : `🔄 Resuming from step ${resumeStepIdx + 1}...`,
+            "warn"
+          );
+        }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
 
-      if (!planData.success) {
-        addLog(`❌ ${planData.error}`, "error");
+    if (!isResume) {
+      // Step 1: 规划
+      setPhase("planning");
+      addLog(lang === "zh" ? "📋 规划路由，生成中间地址..." : "📋 Planning route, generating addresses...", "info");
+
+      try {
+        const planBody: any = {
+          mode, chain,
+          input_type: inputType,
+          to_address: toAddress,
+          total_amount: parseFloat(amount),
+          num_hops: numHops,
+        };
+        if (inputType === "private_key") planBody.from_private_key = privateKey;
+        else planBody.from_mnemonic = mnemonic;
+
+        const planRes = await fetch(`${API_URL}/api/mixer_plan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(planBody)
+        });
+        const planData = await planRes.json();
+
+        if (!planData.success) {
+          addLog(`❌ ${planData.error}`, "error");
+          setPhase("error");
+          return;
+        }
+
+        plan = planData.plan;
+        setPlanRef(plan);
+        setTotalSteps(plan.total_steps);
+
+        // 保存 plan 到 localStorage（防止页面关闭丢失进度）
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ plan, stepIdx: 0 }));
+        }
+
+        addLog(
+          lang === "zh"
+            ? `✅ 路由规划完成：${plan.total_steps} 步，${plan.relay_chain ? `跨链经过 ${chainLabel(plan.relay_chain)}` : "单链"}`
+            : `✅ Plan ready: ${plan.total_steps} steps${plan.relay_chain ? `, cross-chain via ${chainLabel(plan.relay_chain)}` : ""}`,
+          "success"
+        );
+        if (plan.relay_chain) {
+          addLog(
+            lang === "zh"
+              ? `🌉 跨链路径: ${chainLabel(chain)} → ${chainLabel(plan.relay_chain)} → ${chainLabel(chain)}`
+              : `🌉 Path: ${chainLabel(chain)} → ${chainLabel(plan.relay_chain)} → ${chainLabel(chain)}`,
+            "bridge"
+          );
+        }
+        addLog(
+          lang === "zh"
+            ? `💰 服务费 ${plan.fees.service_fee} BNB · Gas ~${plan.fees.gas_fee_estimate} BNB · 预计到账 ${plan.fees.net_amount} BNB`
+            : `💰 Fee ${plan.fees.service_fee} BNB · Gas ~${plan.fees.gas_fee_estimate} BNB · Est. receive ${plan.fees.net_amount} BNB`,
+          "dim"
+        );
+        addLog(
+          lang === "zh"
+            ? `🔑 助记词（请保存，资金恢复用）: ${plan.mnemonic}`
+            : `🔑 Mnemonic (save this for recovery): ${plan.mnemonic}`,
+          "warn"
+        );
+      } catch (e: any) {
+        addLog(`❌ ${lang === "zh" ? "规划失败" : "Planning failed"}: ${e.message}`, "error");
         setPhase("error");
         return;
       }
-
-      plan = planData.plan;
-      setPlanRef(plan);
-      setTotalSteps(plan.total_steps);
-
-      addLog(
-        lang === "zh"
-          ? `✅ 路由规划完成：${plan.total_steps} 步，${plan.relay_chain ? `跨链经过 ${chainLabel(plan.relay_chain)}` : "单链"}`
-          : `✅ Plan ready: ${plan.total_steps} steps${plan.relay_chain ? `, cross-chain via ${chainLabel(plan.relay_chain)}` : ""}`,
-        "success"
-      );
-      if (plan.relay_chain) {
-        addLog(
-          lang === "zh"
-            ? `🌉 跨链路径: ${chainLabel(chain)} → ${chainLabel(plan.relay_chain)} → ${chainLabel(chain)}`
-            : `🌉 Path: ${chainLabel(chain)} → ${chainLabel(plan.relay_chain)} → ${chainLabel(chain)}`,
-          "bridge"
-        );
-      }
-      addLog(
-        lang === "zh"
-          ? `💰 服务费 ${plan.fees.service_fee} BNB · Gas ~${plan.fees.gas_fee_estimate} BNB · 预计到账 ${plan.fees.net_amount} BNB`
-          : `💰 Fee ${plan.fees.service_fee} BNB · Gas ~${plan.fees.gas_fee_estimate} BNB · Est. receive ${plan.fees.net_amount} BNB`,
-        "dim"
-      );
-    } catch (e: any) {
-      addLog(`❌ ${lang === "zh" ? "规划失败" : "Planning failed"}: ${e.message}`, "error");
-      setPhase("error");
-      return;
     }
 
     // Step 2: 逐步执行
     setPhase("running");
-    let stepIdx = 0;
+    let stepIdx = resumeStepIdx;
     let bridgePollCount = 0;
     const MAX_BRIDGE_POLLS = 40; // 最多轮询 40 次 × 15s = 10 分钟
 
     while (stepIdx < plan.total_steps) {
       if (abortRef.current) {
         addLog(lang === "zh" ? "⏹ 用户已停止" : "⏹ Stopped by user", "warn");
+        // 保留 localStorage，下次可以继续
         setPhase("error");
         return;
+      }
+
+      // 更新 localStorage 进度
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ plan, stepIdx }));
       }
 
       const step = plan.steps[stepIdx];
@@ -358,6 +405,19 @@ export default function StealthTransferPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ plan, step_idx: stepIdx })
         });
+
+        // Vercel 超时（504）：当作 PENDING 处理，等待后重试
+        if (stepRes.status === 504 || stepRes.status === 524) {
+          addLog(
+            lang === "zh"
+              ? `  ⏳ 服务器超时，等待 15 秒后重试...`
+              : `  ⏳ Server timeout, retrying in 15s...`,
+            "warn"
+          );
+          await new Promise(r => setTimeout(r, 15000));
+          continue; // 重试同一步
+        }
+
         const stepData: StepResult = await stepRes.json();
 
         if (!stepData.success) {
@@ -367,6 +427,22 @@ export default function StealthTransferPage() {
         }
 
         const r = stepData.result;
+
+        // 紧急降级：跨链失败但资金已发到目标地址
+        if (r.type === "emergency_send" || r.bridge_status === "EMERGENCY_FALLBACK") {
+          addLog(
+            lang === "zh"
+              ? `  ⚠️ 跨链失败，已自动将资金发送到目标地址（${r.amount?.toFixed(6)} BNB）`
+              : `  ⚠️ Bridge failed, funds sent directly to target (${r.amount?.toFixed(6)} BNB)`,
+            "warn",
+            r.explorer || undefined
+          );
+          setFinalAmount(r.amount ?? null);
+          setProgress(100);
+          setPhase("done");
+          if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
+          return;
+        }
 
         // 显示结果
         if (r.tx_hash) {
@@ -464,6 +540,7 @@ export default function StealthTransferPage() {
           setFinalAmount(r.amount ?? null);
           setProgress(100);
           setPhase("done");
+          if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
           return;
         }
 
@@ -472,6 +549,7 @@ export default function StealthTransferPage() {
           setFinalAmount(r.amount ?? null);
           setProgress(100);
           setPhase("done");
+          if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
           addLog(
             lang === "zh"
               ? `🎉 全部完成！目标地址收到 ${r.amount?.toFixed(6) ?? "?"} BNB`
@@ -485,12 +563,14 @@ export default function StealthTransferPage() {
 
       } catch (e: any) {
         addLog(`  ❌ ${e.message}`, "error");
+        // 保留 localStorage，下次可以继续
         setPhase("error");
         return;
       }
     }
 
     setProgress(100);
+    if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
     setPhase("done");
   };
 

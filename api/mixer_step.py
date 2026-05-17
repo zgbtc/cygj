@@ -350,13 +350,87 @@ def poll_bridge_status(tx_hash: str, from_chain: str, to_chain: str, poll_timeou
     }
 
 
+def _emergency_send_to_target(w3, chain: str, pk: str, from_address: str,
+                               balance_wei: int, plan: dict, reason: str = '') -> dict:
+    """
+    紧急降级：跨链失败时，把当前链上的余额直接发到 plan['to_address']。
+    用于 cross_back 失败时保证资金不丢失。
+    """
+    import logging
+    logging.getLogger(__name__).warning(f"⚠️ 紧急降级发送到目标地址: {reason}")
+
+    target = Web3.to_checksum_address(plan['to_address'])
+    chain_id = CHAIN_ID_MAP.get(chain, 56)
+
+    try:
+        gas_price = w3.eth.gas_price
+    except Exception:
+        gas_price = w3.to_wei(5, 'gwei')
+
+    gas_cost = 21000 * gas_price
+    send_wei = balance_wei - gas_cost - 2000
+
+    if send_wei <= 0:
+        return {
+            'tx_hash': '',
+            'from': from_address,
+            'to': target,
+            'amount': 0,
+            'chain': chain,
+            'type': 'emergency_send',
+            'bridge_status': 'FAILED',
+            'emergency': True,
+            'emergency_reason': reason,
+            'error': '余额不足以支付 gas'
+        }
+
+    nonce = w3.eth.get_transaction_count(from_address, 'pending')
+    tx = {
+        'nonce': nonce,
+        'to': target,
+        'value': send_wei,
+        'gas': 21000,
+        'gasPrice': gas_price,
+        'chainId': chain_id
+    }
+    signed = w3.eth.account.sign_transaction(tx, pk)
+    raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
+    tx_hash = w3.eth.send_raw_transaction(raw).hex()
+
+    try:
+        w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+    except Exception:
+        pass
+
+    amount = float(w3.from_wei(send_wei, 'ether'))
+    return {
+        'tx_hash': tx_hash,
+        'from': from_address,
+        'to': target,
+        'amount': amount,
+        'chain': chain,
+        'type': 'emergency_send',
+        'bridge_status': 'EMERGENCY_FALLBACK',
+        'emergency': True,
+        'emergency_reason': reason,
+        'explorer': explorer_url(chain, tx_hash)
+    }
+
+
 def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
-    """执行 LiFi 跨链（发起交易 + 短时间轮询）"""
+    """
+    执行 LiFi 跨链（发起交易 + 短时间轮询）
+
+    安全保障：
+    - cross_back 步骤失败时，自动把资金发到 plan['to_address']（目标地址在原链上）
+    - 这样即使跨链回程失败，用户也不会损失资金
+    """
     import requests
 
     from_chain = step['from_chain']
-    to_chain = step['to_chain']
-    w3_from = connect_chain(from_chain)
+    to_chain   = step['to_chain']
+    purpose    = step.get('purpose', '')
+    w3_from    = connect_chain(from_chain)
 
     pk = get_private_key(plan, step['from_key_idx'])
     account = Account.from_key(pk)
@@ -364,16 +438,14 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
     to_address = Web3.to_checksum_address(step['to_address'])
 
     balance_wei = w3_from.eth.get_balance(from_address)
-    # max 模式下余额为 0 很可能是 RPC 滞后
     if step['amount'] == 'max' and balance_wei == 0:
         balance_wei, w3_from = _wait_balance(w3_from, from_chain, from_address, timeout=35)
     balance = float(w3_from.from_wei(balance_wei, 'ether'))
-    # 跨链 gas 预留：用动态 gas price 计算，3倍 buffer（跨链合约比普通转账贵）
+
+    # 跨链 gas 预留：动态计算，3倍 buffer
     try:
         dyn_gas_price = w3_from.eth.gas_price
-        # 跨链合约约 200000 gas，3倍 buffer
         gas_reserve = float(w3_from.from_wei(dyn_gas_price * 200000 * 3, 'ether'))
-        # 最低保证 GAS_RESERVE 配置值
         gas_reserve = max(gas_reserve, GAS_RESERVE.get(from_chain, 0.0002))
     except Exception:
         gas_reserve = GAS_RESERVE.get(from_chain, 0.0002) * 3
@@ -384,50 +456,77 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
         amount = float(step['amount'])
 
     if amount <= 0:
-        raise ValueError(
-            f"余额不足：{balance:.8f}, 预留 gas {gas_reserve}, 可用 {amount}"
-        )
+        raise ValueError(f"余额不足：{balance:.8f}, 预留 gas {gas_reserve:.8f}, 可用 {amount:.8f}")
+
+    # ── LiFi 最小金额检查 ──────────────────────────────────────
+    # LiFi 要求最小约 $2，按 BNB $600 估算约 0.004 BNB
+    LIFI_MIN_AMOUNT = 0.004
+    if amount < LIFI_MIN_AMOUNT:
+        # cross_back 金额不足：直接在原链上发到目标地址（安全降级）
+        if purpose in ('cross_back', 'cross_back_final'):
+            return _emergency_send_to_target(w3_from, from_chain, pk, from_address,
+                                             balance_wei, plan, reason=f"跨链金额 {amount:.6f} 低于最小值 {LIFI_MIN_AMOUNT}")
+        raise ValueError(f"跨链金额 {amount:.6f} 低于 LiFi 最小值 {LIFI_MIN_AMOUNT}")
 
     amount_wei = w3_from.to_wei(amount, 'ether')
 
-    # 1. 获取 LiFi 报价
-    # 注意：allowExchanges 不能传字符串，直接不传让 LiFi 自动选最优路由
-    quote_params = {
-        'fromChain': CHAIN_ID_MAP[from_chain],
-        'toChain': CHAIN_ID_MAP[to_chain],
-        'fromToken': '0x0000000000000000000000000000000000000000',
-        'toToken': '0x0000000000000000000000000000000000000000',
-        'fromAmount': str(amount_wei),
-        'fromAddress': from_address,
-        'toAddress': to_address,
-        'slippage': '0.03',
-    }
-    resp = requests.get(f"{LIFI_API}/quote", params=quote_params, timeout=15)
-    if resp.status_code != 200:
-        raise Exception(f"LiFi 报价失败 ({resp.status_code}): {resp.text[:200]}")
-    quote = resp.json()
+    # ── 获取 LiFi 报价（带重试）──────────────────────────────────
+    quote = None
+    quote_error = None
+    for attempt in range(3):
+        try:
+            quote_params = {
+                'fromChain': CHAIN_ID_MAP[from_chain],
+                'toChain':   CHAIN_ID_MAP[to_chain],
+                'fromToken': '0x0000000000000000000000000000000000000000',
+                'toToken':   '0x0000000000000000000000000000000000000000',
+                'fromAmount': str(amount_wei),
+                'fromAddress': from_address,
+                'toAddress':   to_address,
+                'slippage': '0.03',
+            }
+            resp = requests.get(f"{LIFI_API}/quote", params=quote_params, timeout=20)
+            if resp.status_code == 200 and 'transactionRequest' in resp.json():
+                quote = resp.json()
+                break
+            quote_error = f"LiFi 报价失败 ({resp.status_code}): {resp.text[:200]}"
+        except Exception as e:
+            quote_error = str(e)
+        if attempt < 2:
+            time.sleep(3)
 
-    if 'transactionRequest' not in quote:
-        raise Exception(f"报价缺少 transactionRequest: {quote.get('message', quote)}")
+    if quote is None:
+        # 报价失败：cross_back 时紧急发到目标地址，cross_out 时抛异常
+        if purpose in ('cross_back', 'cross_back_final'):
+            return _emergency_send_to_target(w3_from, from_chain, pk, from_address,
+                                             balance_wei, plan, reason=f"LiFi 报价失败: {quote_error}")
+        raise Exception(f"LiFi 报价失败（重试3次）: {quote_error}")
 
     tx_req = quote['transactionRequest']
     nonce = w3_from.eth.get_transaction_count(from_address, 'pending')
 
     tx = {
         'from': from_address,
-        'to': Web3.to_checksum_address(tx_req['to']),
+        'to':   Web3.to_checksum_address(tx_req['to']),
         'value': int(tx_req.get('value', 0), 16) if isinstance(tx_req.get('value'), str) else int(tx_req.get('value', 0)),
         'data': tx_req.get('data', '0x'),
-        'gas': int(tx_req.get('gasLimit', 500000), 16) if isinstance(tx_req.get('gasLimit'), str) else int(tx_req.get('gasLimit', 500000)),
+        'gas':  int(tx_req.get('gasLimit', 500000), 16) if isinstance(tx_req.get('gasLimit'), str) else int(tx_req.get('gasLimit', 500000)),
         'gasPrice': w3_from.eth.gas_price,
         'nonce': nonce,
         'chainId': CHAIN_ID_MAP[from_chain]
     }
 
-    signed = w3_from.eth.account.sign_transaction(tx, pk)
-    raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
-    tx_hash = w3_from.eth.send_raw_transaction(raw)
-    tx_hash_hex = tx_hash.hex()
+    try:
+        signed = w3_from.eth.account.sign_transaction(tx, pk)
+        raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
+        tx_hash = w3_from.eth.send_raw_transaction(raw)
+        tx_hash_hex = tx_hash.hex()
+    except Exception as e:
+        # 发交易失败：cross_back 时紧急发到目标地址
+        if purpose in ('cross_back', 'cross_back_final'):
+            return _emergency_send_to_target(w3_from, from_chain, pk, from_address,
+                                             balance_wei, plan, reason=f"发交易失败: {e}")
+        raise
 
     # 2. 等待源链上链确认（快，一般 3-5 秒）
     try:
