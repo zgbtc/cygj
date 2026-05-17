@@ -185,6 +185,7 @@ def build_plan(
             'desc': f"🌉 回到原链 {chain.upper()}"
         })
         current_chain = chain
+        current_key_idx = next_key_idx  # ← 修复：更新 current_key_idx，否则后续步骤从空地址发送
 
     # Step: 目标隔离 → 目标地址（current_key_idx 的地址 → intermediate[num_hops+1]，再 → to_address）
     iso_tgt_idx = num_hops + 1

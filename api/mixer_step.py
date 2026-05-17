@@ -152,11 +152,11 @@ def _should_early_exit(balance_wei: int, gas_cost_wei: int,
                        plan: dict, step_idx: int) -> bool:
     """
     判断是否应该软退出：
-    当前余额不足以支撑剩余所有跳 + 最终归集这一笔。
-    至少保证当前这一跳能发出去（balance > gas_cost * 2）。
+    当前余额不足以支撑剩余所有跳的 gas。
+    只检查 gas 预算，不检查 value（value 是 max，会自动缩减）。
     """
     needed = _remaining_gas_needed(plan, step_idx, gas_cost_wei)
-    # 如果剩余 gas 需求 > 当前余额的 30%，触发软退出
+    # 余额扣掉本跳 gas 后，不够支付后续所有跳的 gas → 软退出
     return needed > 0 and (balance_wei - gas_cost_wei) < needed
 
 
@@ -182,7 +182,8 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     if step['amount'] == 'max':
         balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=35)
     else:
-        balance_wei = w3.eth.get_balance(from_address)
+        # 固定金额（如 donation）：也做一次轮询，防止上一步 tx 还没广播到此 RPC 节点
+        balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=15)
 
     # 软退出检查：如果剩余余额不够撑完后续所有跳，直接发到最终 target
     # 只对 hop 类型的步骤做检查（source_isolation / donation 不做）
