@@ -135,7 +135,32 @@ def _wait_balance(w3_init, chain: str, address: str, timeout: int = 35) -> tuple
     return balance_wei, w3
 
 
-def execute_send(plan: dict, step: dict) -> dict:
+def _remaining_gas_needed(plan: dict, current_step_idx: int, gas_cost_wei: int) -> int:
+    """
+    估算从 current_step_idx 之后还需要多少 gas（wei）。
+    只统计 send 类型的步骤（bridge 另算）。
+    """
+    steps = plan.get('steps', [])
+    remaining_sends = sum(
+        1 for s in steps[current_step_idx + 1:]
+        if s.get('type') == 'send'
+    )
+    return remaining_sends * gas_cost_wei
+
+
+def _should_early_exit(balance_wei: int, gas_cost_wei: int,
+                       plan: dict, step_idx: int) -> bool:
+    """
+    判断是否应该软退出：
+    当前余额不足以支撑剩余所有跳 + 最终归集这一笔。
+    至少保证当前这一跳能发出去（balance > gas_cost * 2）。
+    """
+    needed = _remaining_gas_needed(plan, step_idx, gas_cost_wei)
+    # 如果剩余 gas 需求 > 当前余额的 30%，触发软退出
+    return needed > 0 and (balance_wei - gas_cost_wei) < needed
+
+
+def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     """执行同链发送"""
     chain = step['chain']
     w3 = connect_chain(chain)
@@ -158,6 +183,43 @@ def execute_send(plan: dict, step: dict) -> dict:
         balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=35)
     else:
         balance_wei = w3.eth.get_balance(from_address)
+
+    # 软退出检查：如果剩余余额不够撑完后续所有跳，直接发到最终 target
+    # 只对 hop 类型的步骤做检查（source_isolation / donation 不做）
+    purpose = step.get('purpose', '')
+    is_hop = purpose in ('hop', 'target_isolation_in', 'cross_out', 'cross_back')
+    if is_hop and step_idx >= 0 and _should_early_exit(balance_wei, gas_cost_wei, plan, step_idx):
+        final_target = Web3.to_checksum_address(plan['to_address'])
+        amount_wei = balance_wei - gas_cost_wei - 1000
+        if amount_wei > 0:
+            nonce = w3.eth.get_transaction_count(from_address, 'pending')
+            tx = {
+                'nonce': nonce,
+                'to': final_target,
+                'value': amount_wei,
+                'gas': 21000,
+                'gasPrice': gas_price,
+                'chainId': chain_id
+            }
+            signed = w3.eth.account.sign_transaction(tx, pk)
+            raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
+            tx_hash = w3.eth.send_raw_transaction(raw)
+            tx_hash_hex = tx_hash.hex()
+            try:
+                w3.eth.wait_for_transaction_receipt(tx_hash_hex, timeout=45, poll_latency=1.0)
+            except Exception:
+                pass
+            return {
+                'tx_hash': tx_hash_hex,
+                'from': from_address,
+                'to': final_target,
+                'amount': float(w3.from_wei(amount_wei, 'ether')),
+                'chain': chain,
+                'type': 'send',
+                'early_exit': True,
+                'early_exit_reason': f'gas budget insufficient for remaining hops, routed directly to target',
+                'explorer': explorer_url(chain, tx_hash_hex)
+            }
 
     # 计算发送金额（精确到 wei，避免浮点误差）
     if step['amount'] == 'max':
@@ -210,6 +272,49 @@ def execute_send(plan: dict, step: dict) -> dict:
         'chain': chain,
         'type': 'send',
         'explorer': explorer_url(chain, tx_hash_hex)
+    }
+
+
+def poll_bridge_status(tx_hash: str, from_chain: str, to_chain: str, poll_timeout: int = 35) -> dict:
+    """
+    纯状态查询：不发新交易，只 poll LiFi status。
+    前端在 bridge 步骤返回 PENDING 后，用此接口轮询。
+    """
+    import requests
+    bridge_status = 'PENDING'
+    tx_hash_to = None
+    deadline = time.time() + poll_timeout
+    while time.time() < deadline:
+        try:
+            status_resp = requests.get(
+                f"{LIFI_API}/status",
+                params={
+                    'txHash': tx_hash,
+                    'fromChain': CHAIN_ID_MAP[from_chain],
+                    'toChain': CHAIN_ID_MAP[to_chain]
+                },
+                timeout=8
+            )
+            if status_resp.status_code == 200:
+                sd = status_resp.json()
+                bridge_status = sd.get('status', 'PENDING')
+                receiving = sd.get('receiving', {})
+                tx_hash_to = receiving.get('txHash')
+                if bridge_status in ('DONE', 'FAILED'):
+                    break
+        except Exception:
+            pass
+        time.sleep(3)
+
+    return {
+        'bridge_status': bridge_status,
+        'tx_hash': tx_hash,
+        'tx_hash_to_chain': tx_hash_to,
+        'from_chain': from_chain,
+        'to_chain': to_chain,
+        'requires_polling': bridge_status == 'PENDING',
+        'explorer_to': explorer_url(to_chain, tx_hash_to) if tx_hash_to else None,
+        'type': 'bridge_poll'
     }
 
 
@@ -361,6 +466,18 @@ class handler(BaseHTTPRequestHandler):
             plan = data.get('plan')
             step_idx = data.get('step_idx')
 
+            # ── 纯 poll 模式：前端传 tx_hash 查跨链状态，不重新发交易 ──
+            poll_tx_hash = data.get('poll_tx_hash')
+            poll_from_chain = data.get('poll_from_chain')
+            poll_to_chain = data.get('poll_to_chain')
+            if poll_tx_hash and poll_from_chain and poll_to_chain:
+                result = poll_bridge_status(poll_tx_hash, poll_from_chain, poll_to_chain)
+                return self._send(200, {
+                    'success': True,
+                    'poll': True,
+                    'result': result
+                })
+
             if not plan or step_idx is None:
                 return self._send(400, {'success': False, 'error': '缺少 plan 或 step_idx'})
 
@@ -376,7 +493,7 @@ class handler(BaseHTTPRequestHandler):
             result = None
             try:
                 if step_type == 'send':
-                    result = execute_send(plan, step)
+                    result = execute_send(plan, step, step_idx=step_idx)
                 elif step_type == 'bridge':
                     result = execute_bridge(plan, step)
                 else:
