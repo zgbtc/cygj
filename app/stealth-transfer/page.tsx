@@ -840,7 +840,7 @@ export default function StealthTransferPage() {
                   {tx.numHops} {numHops}
                 </label>
                 <div className="flex gap-2 flex-wrap">
-                  {[10, 50, 100, 500, 1000].map(n => (
+                  {[10, 50, 100, 500].map(n => (
                     <button
                       key={n}
                       onClick={() => { setNumHops(n); setCustomHops(""); }}
@@ -857,17 +857,21 @@ export default function StealthTransferPage() {
                   <input
                     type="number"
                     min="3"
-                    max="1000"
+                    max="10000"
                     value={customHops}
                     onChange={e => {
                       const v = e.target.value;
                       setCustomHops(v);
                       const n = parseInt(v);
-                      if (!isNaN(n)) setNumHops(Math.max(3, Math.min(1000, n)));
+                      if (!isNaN(n)) setNumHops(Math.max(3, Math.min(10000, n)));
                     }}
                     disabled={isRunning}
-                    placeholder={tx.custom}
-                    className="flex-1 min-w-[80px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+                    placeholder="1000"
+                    className={`w-24 px-4 py-2 rounded-lg font-medium transition disabled:opacity-50 border ${
+                      customHops !== ""
+                        ? "border-purple-500 bg-purple-50 text-purple-700"
+                        : "border-gray-300 bg-gray-100 text-gray-700"
+                    } focus:ring-2 focus:ring-purple-500`}
                   />
                 </div>
               </div>
