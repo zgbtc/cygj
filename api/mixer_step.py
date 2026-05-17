@@ -428,43 +428,6 @@ def _emergency_send_to_target(w3, chain: str, pk: str, from_address: str,
         'emergency_chain': chain,  # 告知前端资金在哪条链上
         'explorer': explorer_url(chain, tx_hash)
     }
-            'bridge_status': 'FAILED',
-            'emergency': True,
-            'emergency_reason': reason,
-            'error': '余额不足以支付 gas'
-        }
-
-    nonce = w3.eth.get_transaction_count(from_address, 'pending')
-    tx = {
-        'nonce': nonce,
-        'to': target,
-        'value': send_wei,
-        'gas': 21000,
-        'gasPrice': gas_price,
-        'chainId': chain_id
-    }
-    signed = w3.eth.account.sign_transaction(tx, pk)
-    raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
-    tx_hash = w3.eth.send_raw_transaction(raw).hex()
-
-    try:
-        w3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
-    except Exception:
-        pass
-
-    amount = float(w3.from_wei(send_wei, 'ether'))
-    return {
-        'tx_hash': tx_hash,
-        'from': from_address,
-        'to': target,
-        'amount': amount,
-        'chain': chain,
-        'type': 'emergency_send',
-        'bridge_status': 'EMERGENCY_FALLBACK',
-        'emergency': True,
-        'emergency_reason': reason,
-        'explorer': explorer_url(chain, tx_hash)
-    }
 
 
 def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
