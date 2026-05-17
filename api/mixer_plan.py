@@ -110,25 +110,24 @@ def build_plan(
         'desc': f"🔒 源地址隔离 → {intermediate[iso_src_idx]['address'][:10]}..."
     })
 
-    # === 极致模式：规划 1-2 次真跨链 ===
-    # 跨链点：第 floor(N/3) 跳（从隔离地址跨去 relay chain），第 floor(2N/3) 跳（跨回原链）
+    # === 极致模式：1次出跨链 + 立刻回跨链，中间不在L2上做hop ===
+    # 设计：BSC→relay→BSC 只是为了打断链上追踪，不在L2上停留
+    # cross_out_hop: 第 N/3 跳出去
+    # cross_back_hop: cross_out_hop+1 立刻回来（不在L2上做hop，避免L2 gas问题）
     cross_enabled = (mode == 'ultimate') and num_hops >= 3
-    cross_out_hop = max(1, num_hops // 3) if cross_enabled else -1
-    cross_back_hop = max(cross_out_hop + 1, num_hops * 2 // 3) if cross_enabled else -1
+    cross_out_hop  = max(1, num_hops // 3) if cross_enabled else -1
+    cross_back_hop = cross_out_hop + 1 if cross_enabled else -1  # 出去后立刻回来
     relay_chain = random.choice(RELAY_CHAINS) if cross_enabled else None
 
-    # 当前活跃地址（step 执行时跟踪），索引指向 intermediate
     current_key_idx = iso_src_idx
     current_chain = chain
 
-    # 为 cross_out 的源预留：跨链前先汇总到 intermediate[current_key_idx]
-    # Step 1..N: 同链跳转（直到 cross_out_hop 时跨链）
     for hop in range(1, num_hops + 1):
-        next_key_idx = hop  # intermediate[1..num_hops] 作为中间跳
+        next_key_idx = hop
         next_addr = intermediate[next_key_idx]['address']
 
         if hop == cross_out_hop and cross_enabled:
-            # 出跨链：current_chain → relay_chain，目标仍是 next_addr（但在 relay 链上收币）
+            # 出跨链：BSC → relay_chain
             steps.append({
                 'idx': len(steps),
                 'type': 'bridge',
@@ -138,11 +137,13 @@ def build_plan(
                 'to_address': next_addr,
                 'amount': 'max',
                 'purpose': 'cross_out',
-                'desc': f"🌉 跨链 {current_chain.upper()} → {relay_chain.upper()} (hop {hop})"
+                'desc': f"🌉 跨链出 {current_chain.upper()} → {relay_chain.upper()} (hop {hop})"
             })
             current_chain = relay_chain
+            current_key_idx = next_key_idx
+
         elif hop == cross_back_hop and cross_enabled:
-            # 回跨链：relay_chain → 原 chain
+            # 立刻回跨链：relay_chain → BSC（不在L2上做任何hop）
             steps.append({
                 'idx': len(steps),
                 'type': 'bridge',
@@ -152,11 +153,13 @@ def build_plan(
                 'to_address': next_addr,
                 'amount': 'max',
                 'purpose': 'cross_back',
-                'desc': f"🌉 跨链 {current_chain.upper()} → {chain.upper()} (hop {hop})"
+                'desc': f"🌉 跨链回 {current_chain.upper()} → {chain.upper()} (hop {hop})"
             })
             current_chain = chain
+            current_key_idx = next_key_idx
+
         else:
-            # 同链跳转
+            # 同链跳转（全部在 BSC 上，不在L2上做hop）
             steps.append({
                 'idx': len(steps),
                 'type': 'send',
@@ -167,8 +170,7 @@ def build_plan(
                 'purpose': 'hop',
                 'desc': f"🔀 跳转 {current_chain.upper()} #{hop}"
             })
-
-        current_key_idx = next_key_idx
+            current_key_idx = next_key_idx
 
     # 确保最终回到原 chain（冗余保护）
     if current_chain != chain:
