@@ -168,14 +168,22 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     w3 = connect_chain(chain)
     chain_id = CHAIN_ID_MAP.get(chain, 56)
 
+    # L2 链标识（gas 处理方式不同）
+    l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
+    extra_buffer = 5000 if chain in l2_chains else 2000
+
     pk = get_private_key(plan, step['from_key_idx'])
     account = Account.from_key(pk)
     from_address = account.address
     to_address = Web3.to_checksum_address(step['to_address'])
 
-    # Gas price（动态，加 20% buffer 防止波动）
+    # Gas price（动态）
+    # L2 链 gas price 极低且稳定，不加 buffer 避免估算偏差导致余额不足
+    # BSC 等 L1 加 20% buffer 防止波动
+    l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
     try:
-        gas_price = int(w3.eth.gas_price * 1.2)
+        raw_gas_price = w3.eth.gas_price
+        gas_price = raw_gas_price if chain in l2_chains else int(raw_gas_price * 1.2)
     except Exception:
         gas_price = w3.to_wei(5, 'gwei')
     gas_cost_wei = 21000 * gas_price
@@ -200,8 +208,6 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     is_hop = purpose in ('hop', 'target_isolation_in', 'cross_out', 'cross_back')
     if is_hop and step_idx >= 0 and _should_early_exit(balance_wei, gas_cost_wei, plan, step_idx):
         final_target = Web3.to_checksum_address(plan['to_address'])
-        l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
-        extra_buffer = 5000 if chain in l2_chains else 2000
         amount_wei = balance_wei - gas_cost_wei - extra_buffer
         if amount_wei > 0:
             nonce = w3.eth.get_transaction_count(from_address, 'pending')
@@ -235,10 +241,6 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
 
     # 计算发送金额（精确到 wei，避免浮点误差）
     if step['amount'] == 'max':
-        # L2 链（Base/Arbitrum/Optimism）gas price 波动大，多留 5000 wei buffer
-        # BSC 等 L1 留 2000 wei 即可
-        l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
-        extra_buffer = 5000 if chain in l2_chains else 2000
         amount_wei = balance_wei - gas_cost_wei - extra_buffer
     else:
         amount_wei = w3.to_wei(float(step['amount']), 'ether')
@@ -252,8 +254,6 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
 
     # 防御：确保 value + gas <= balance
     if amount_wei + gas_cost_wei > balance_wei:
-        l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
-        extra_buffer = 5000 if chain in l2_chains else 2000
         amount_wei = balance_wei - gas_cost_wei - extra_buffer
         if amount_wei <= 0:
             raise ValueError(f"扣 gas 后余额为负")
@@ -261,6 +261,21 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     amount = float(w3.from_wei(amount_wei, 'ether'))
 
     nonce = w3.eth.get_transaction_count(from_address, 'pending')
+    # 发交易前重新查最新 gas price，防止查余额到发交易之间价格变化
+    try:
+        latest_gas_price = w3.eth.gas_price
+        gas_price = latest_gas_price if chain in l2_chains else int(latest_gas_price * 1.2)
+        # 如果 gas price 涨了，重新计算 amount_wei
+        new_gas_cost = 21000 * gas_price
+        if new_gas_cost > gas_cost_wei and step['amount'] == 'max':
+            amount_wei = balance_wei - new_gas_cost - extra_buffer
+            if amount_wei <= 0:
+                raise ValueError(f"gas price 上涨后余额不足")
+            amount = float(w3.from_wei(amount_wei, 'ether'))
+    except ValueError:
+        raise
+    except Exception:
+        pass  # 查询失败用原来的 gas_price
     tx = {
         'nonce': nonce,
         'to': to_address,
