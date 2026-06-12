@@ -463,15 +463,22 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
         balance_wei, w3_from = _wait_balance(w3_from, from_chain, from_address, timeout=35)
     balance = float(w3_from.from_wei(balance_wei, 'ether'))
 
-    # 跨链 gas 预留：用 LiFi 实际所需 gas（约 500k-800k），加 2x buffer
-    # 之前 200k * 3 不够，导致 LiFi 报价里的 value + 实际 gas > balance
+    # 跨链 gas 预留：L2（尤其 Polygon）gas price 在报价和发送之间会暴涨数倍，
+    # 必须按"可能飙升后的 gas"预留，否则 value 锁太高 → value+gas>balance → 失败。
+    # 策略：
+    #   - 用当前 gas_price × 800k gasLimit × 高倍数（L2 用 6x 抗 spike）
+    #   - 再用余额百分比兜底（L2 至少留 8%，主网留 1%），双保险
+    l2_set = {'polygon', 'arbitrum', 'optimism', 'base'}
+    is_l2_from = from_chain in l2_set
     try:
         dyn_gas_price = w3_from.eth.gas_price
-        # 800k gas * gas_price * 2x buffer = 覆盖 LiFi 最大 gas
-        gas_reserve = float(w3_from.from_wei(dyn_gas_price * 800000 * 2, 'ether'))
-        gas_reserve = max(gas_reserve, GAS_RESERVE.get(from_chain, 0.0002))
+        spike_multiplier = 6 if is_l2_from else 2
+        gas_reserve = float(w3_from.from_wei(dyn_gas_price * 800000 * spike_multiplier, 'ether'))
+        # 百分比兜底：L2 gas spike 极端时按金额比例预留，避免 value 占满余额
+        pct_floor = balance * (0.08 if is_l2_from else 0.01)
+        gas_reserve = max(gas_reserve, pct_floor, GAS_RESERVE.get(from_chain, 0.0002))
     except Exception:
-        gas_reserve = GAS_RESERVE.get(from_chain, 0.0002) * 5
+        gas_reserve = max(balance * 0.08, GAS_RESERVE.get(from_chain, 0.0002) * 5)
 
     if step['amount'] == 'max':
         amount = balance - gas_reserve
@@ -750,11 +757,26 @@ class handler(BaseHTTPRequestHandler):
             next_idx = step_idx + 1
             done = next_idx >= len(steps)
 
+            # 紧急降级 = 资金已直接送达目标地址（虽在 L2 上），视为终态成功。
+            # 必须置 done=True，否则前端会继续跑后续 send 步骤，而那些地址已无余额 → 连环报错。
+            terminal_emergency = bool(
+                result.get('emergency')
+                or result.get('bridge_status') == 'EMERGENCY_FALLBACK'
+            )
+            if terminal_emergency:
+                done = True
+                try:
+                    from db import update_session_status
+                    update_session_status(plan['plan_id'], 'done')
+                except Exception:
+                    pass
+
             return self._send(200, {
                 'success': True,
                 'step_idx': step_idx,
                 'next_idx': next_idx,
                 'done': done,
+                'terminal_emergency': terminal_emergency,
                 'total_steps': len(steps),
                 'step': step,
                 'result': result

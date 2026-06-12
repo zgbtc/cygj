@@ -32,7 +32,10 @@ except Exception as e:
 
 
 # 跨链中继候选链（与当前 chain 不同）
-RELAY_CHAINS = ['polygon', 'arbitrum', 'optimism', 'base']
+# 注意：刻意排除 Polygon —— 它的 gas price 波动剧烈（MEV 机器人常把 priority fee
+# 打到 1000+ gwei），导致跨链回程时 value+gas 超预算而失败。
+# Arbitrum / Base / Optimism 的 gas 又低又稳，跨链成功率高得多。
+RELAY_CHAINS = ['arbitrum', 'base', 'optimism']
 
 # 费率配置
 FEE_RATES = {
@@ -61,15 +64,18 @@ def build_plan(
     cross_enabled = (mode == 'ultimate') and num_hops >= 5
 
     if cross_enabled:
-        relay_inner_hops = random.randint(3, 5)
-        cross_segment_size = 2 + relay_inner_hops
-        max_segments_by_budget = max(0, (num_hops - 2) // cross_segment_size)
+        # 1) 先确定目标段数（按 num_hops 量级）
         if num_hops >= 16:
-            cross_count = min(3, max_segments_by_budget)
+            target_cross_count = 3
         elif num_hops >= 10:
-            cross_count = min(2, max_segments_by_budget)
+            target_cross_count = 2
         else:
-            cross_count = min(1, max_segments_by_budget)
+            target_cross_count = 1
+
+        # 2) 每段至少 5 hop（cross_out + 3 inner + cross_back），并保留 2 hop 给 BSC 段
+        MIN_SEGMENT_SIZE = 5
+        max_segments_by_budget = max(0, (num_hops - 2) // MIN_SEGMENT_SIZE)
+        cross_count = min(target_cross_count, max_segments_by_budget)
 
         if cross_count == 0:
             # num_hops 太小放不下任何跨链段，降级为纯 BSC 多跳
@@ -78,6 +84,16 @@ def build_plan(
             cross_segment_size = 0
             relays_for_segments = []
         else:
+            # 3) 在 num_hops 预算内反推每段最大 inner hop 数
+            #    总段消耗 = cross_count * (2 + inner)，要保留 ≥ 0 给 BSC 段
+            max_inner = (num_hops - cross_count * 2) // cross_count
+            # 收敛到 [3, 5] 区间；预算允许时随机
+            inner_lower = 3
+            inner_upper = min(5, max(inner_lower, max_inner))
+            relay_inner_hops = random.randint(inner_lower, inner_upper)
+            cross_segment_size = 2 + relay_inner_hops
+
+            # 4) 选 relay 链
             relays_for_segments = random.sample(
                 RELAY_CHAINS, min(cross_count, len(RELAY_CHAINS))
             )
