@@ -372,14 +372,19 @@ def _emergency_send_to_target(w3, chain: str, pk: str, from_address: str,
     target = Web3.to_checksum_address(plan['to_address'])
     chain_id = CHAIN_ID_MAP.get(chain, 56)
 
+    # L2 链需要更多 gas（L2 overhead），用更高的 gas_limit
+    l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
+    is_l2 = chain in l2_chains
+    gas_limit = 300000 if is_l2 else 21000
+
     try:
-        gas_price = w3.eth.gas_price
+        # 用 1.5x 实时 gas_price，防止 base fee 涨价
+        gas_price = int(w3.eth.gas_price * 1.5) if is_l2 else int(w3.eth.gas_price * 1.2)
     except Exception:
         gas_price = w3.to_wei(5, 'gwei')
 
-    l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
-    extra_buffer = 5000 if chain in l2_chains else 2000
-    gas_cost = 21000 * gas_price
+    extra_buffer = 5000 if is_l2 else 2000
+    gas_cost = gas_limit * gas_price
     send_wei = balance_wei - gas_cost - extra_buffer
 
     if send_wei <= 0:
@@ -401,7 +406,7 @@ def _emergency_send_to_target(w3, chain: str, pk: str, from_address: str,
         'nonce': nonce,
         'to': target,
         'value': send_wei,
-        'gas': 21000,
+        'gas': gas_limit,
         'gasPrice': gas_price,
         'chainId': chain_id
     }
@@ -520,13 +525,19 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
     tx_req = quote['transactionRequest']
     nonce = w3_from.eth.get_transaction_count(from_address, 'pending')
 
+    # gasPrice：用实时值的 1.5x，防止 L2 base fee 在 quote 和 send 之间涨价
+    try:
+        current_gas_price = int(w3_from.eth.gas_price * 1.5)
+    except Exception:
+        current_gas_price = w3_from.to_wei(5, 'gwei')
+
     tx = {
         'from': from_address,
         'to':   Web3.to_checksum_address(tx_req['to']),
         'value': int(tx_req.get('value', 0), 16) if isinstance(tx_req.get('value'), str) else int(tx_req.get('value', 0)),
         'data': tx_req.get('data', '0x'),
         'gas':  int(tx_req.get('gasLimit', 500000), 16) if isinstance(tx_req.get('gasLimit'), str) else int(tx_req.get('gasLimit', 500000)),
-        'gasPrice': w3_from.eth.gas_price,
+        'gasPrice': current_gas_price,
         'nonce': nonce,
         'chainId': CHAIN_ID_MAP[from_chain]
     }
