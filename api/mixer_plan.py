@@ -55,22 +55,61 @@ def build_plan(
     from_account = Account.from_key(from_private_key)
     from_address = from_account.address
 
-    # 计算费用
+    # ===== 第一步：先决定跨链路径参数（fees 计算依赖 cross_count） =====
+    # 极致模式：在 relay 链上做几跳，把 cross_out 和 cross_back 时间窗拉开
+    # 跨链段结构：cross_out → relay_inner_hops 同链跳 → cross_back（消耗 2 + relay_inner_hops 个 hop）
+    cross_enabled = (mode == 'ultimate') and num_hops >= 5
+
+    if cross_enabled:
+        relay_inner_hops = random.randint(3, 5)
+        cross_segment_size = 2 + relay_inner_hops
+        max_segments_by_budget = max(0, (num_hops - 2) // cross_segment_size)
+        if num_hops >= 16:
+            cross_count = min(3, max_segments_by_budget)
+        elif num_hops >= 10:
+            cross_count = min(2, max_segments_by_budget)
+        else:
+            cross_count = min(1, max_segments_by_budget)
+
+        if cross_count == 0:
+            # num_hops 太小放不下任何跨链段，降级为纯 BSC 多跳
+            cross_enabled = False
+            relay_inner_hops = 0
+            cross_segment_size = 0
+            relays_for_segments = []
+        else:
+            relays_for_segments = random.sample(
+                RELAY_CHAINS, min(cross_count, len(RELAY_CHAINS))
+            )
+            while len(relays_for_segments) < cross_count:
+                relays_for_segments.append(random.choice(RELAY_CHAINS))
+    else:
+        relay_inner_hops = 0
+        cross_segment_size = 0
+        cross_count = 0
+        relays_for_segments = []
+
+    # ===== 第二步：计算费用 =====
+    # 服务费
     if mode == 'ultimate':
         service_fee = total_amount * FEE_RATES['ultimate']
     else:
         service_fee = num_hops * FEE_RATES['fast']
 
-    # 估算 gas（BSC 每笔 ~0.000105 BNB，预留 0.00015）
-    gas_per_tx = 0.00015
-    # 估算需要的交易数：1 捐赠 + 1 源隔离 + N 分散 + N 跳转 + N 汇总 + 1 目标隔离 = ~3N+3
-    estimated_tx_count = 3 * num_hops + 3
-    total_gas_estimate = gas_per_tx * estimated_tx_count
+    # Gas 估算：实际交易数 = num_hops + 3（捐赠 + src 隔离 + N hop + tgt 隔离 + final = N+4 含 donation）
+    # bridge 步骤 gas 高（LiFi ~500k）但只占 cross_count*2 笔，其余是普通 send (21k)
+    # 简化：用 BSC 5 gwei × 1.5 buffer 估，bridge 单独按 500k gas 估
+    SEND_GAS_BNB = 0.00015          # 21000 * 5 gwei * 1.5x ≈ 0.000158
+    BRIDGE_GAS_BNB = 0.003          # 500000 * 5 gwei * 1.2x ≈ 0.003
+    send_count = num_hops + 3 - (cross_count * 2)   # 除去 cross 步骤的同链 send
+    bridge_count = cross_count * 2                  # cross_out + cross_back per segment
+    total_gas_estimate = send_count * SEND_GAS_BNB + bridge_count * BRIDGE_GAS_BNB
 
-    # 极致模式的跨链费
-    crosschain_fee = 0.006 if mode == 'ultimate' else 0
+    # 跨链协议费（LiFi/Stargate 类抽 0.05-0.3% slippage 内含，每段保守 $1.5）
+    # 按 BNB $600 估，每次 ≈ 0.0025 BNB；但用户实际是按金额抽，这里只做净额预估
+    crosschain_fee = cross_count * 0.0025
 
-    # LiFi 最小跨链金额（约 $2，按 BNB $600 估算）
+    # LiFi 最小跨链金额（按 BNB $600 估约 $2.4）
     LIFI_MIN_BNB = 0.004
 
     total_fee = service_fee + total_gas_estimate + crosschain_fee
@@ -79,10 +118,10 @@ def build_plan(
     if net_amount <= 0:
         raise ValueError(f"金额过小：扣除费用（{total_fee:.6f}）后为负")
 
-    # ultimate 模式：检查跨链后余额是否满足 LiFi 最小值
-    # 跨链时余额约为 total_amount - service_fee - 部分gas
-    if mode == 'ultimate':
-        estimated_at_bridge = total_amount - service_fee - gas_per_tx * (num_hops // 3 + 2)
+    # ultimate 模式：检查跨链时余额是否满足 LiFi 最小值
+    if cross_enabled:
+        # 跨链时大约扣了：服务费 + 部分 gas + 第一段 BSC 跳的 gas
+        estimated_at_bridge = total_amount - service_fee - SEND_GAS_BNB * (num_hops // 4 + 2)
         if estimated_at_bridge < LIFI_MIN_BNB:
             raise ValueError(
                 f"金额过小：ultimate 模式跨链时预计余额 {estimated_at_bridge:.6f} BNB，"
@@ -90,9 +129,12 @@ def build_plan(
                 f"请使用 fast 模式或增加转账金额至 ≥ 0.05 BNB"
             )
 
-    # 生成中间地址
+    # 生成中间地址：用随机派生索引打散链上派生路径，避免 0,1,2,3... 这种规律
+    # 派生索引空间足够大（2^31），num_hops 最多 1000，碰撞概率忽略
     wallet = HDWallet(mnemonic)
-    intermediate = wallet.generate_addresses(num_hops + 2)  # 多派生 2 个作为源/目标隔离
+    intermediate_count = num_hops + 2  # +2 给源/目标隔离
+    relay_indices = random.sample(range(1, 2_000_000_000), intermediate_count)
+    intermediate = wallet.generate_addresses_by_indices(relay_indices)
 
     # ===== 构建步骤列表 =====
     steps = []
@@ -111,7 +153,7 @@ def build_plan(
         })
 
     # Step 0b: 源地址隔离 → 隔离地址（intermediate[0]）
-    # 金额用特殊值 'dynamic_balance'，执行时按实时余额计算
+    # 金额用特殊值 'max'，执行时按实时余额计算
     iso_src_idx = 0
     steps.append({
         'idx': len(steps),
@@ -124,87 +166,94 @@ def build_plan(
         'desc': f"🔒 源地址隔离 → {intermediate[iso_src_idx]['address'][:10]}..."
     })
 
-    # === 极致模式：1次出跨链 + 立刻回跨链，中间不在L2上做hop ===
-    # 设计：BSC→relay→BSC 只是为了打断链上追踪，不在L2上停留
-    # cross_out_hop: 第 N/3 跳出去
-    # cross_back_hop: cross_out_hop+1 立刻回来（不在L2上做hop，避免L2 gas问题）
-    cross_enabled = (mode == 'ultimate') and num_hops >= 3
-    cross_out_hop  = max(1, num_hops // 3) if cross_enabled else -1
-    cross_back_hop = cross_out_hop + 1 if cross_enabled else -1  # 出去后立刻回来
-    relay_chain = random.choice(RELAY_CHAINS) if cross_enabled else None
+    # ===== 极致模式：多段跨链 + relay 链上多跳，破坏跨链 in/out 时间窗 =====
+    # 跨链路径参数已在前面（fees 计算前）确定：
+    #   cross_enabled, cross_count, relay_inner_hops, cross_segment_size, relays_for_segments
 
-    current_key_idx = iso_src_idx
+    # 计算 BSC 同链 hop 总数 = num_hops - 跨链段消耗的 hop 数
+    bsc_hops_total = num_hops - cross_count * cross_segment_size
+    if bsc_hops_total < 0:
+        bsc_hops_total = 0
+
+    # 把 BSC hop 分配到 cross_count + 1 个段（首段、各跨链段之间、末段）
+    num_bsc_segments = cross_count + 1
+    bsc_per_segment = [bsc_hops_total // num_bsc_segments] * num_bsc_segments
+    for i in range(bsc_hops_total % num_bsc_segments):
+        bsc_per_segment[i] += 1
+    random.shuffle(bsc_per_segment)  # 随机化每段长度，避免规律
+
+    # ── 构建 step 序列 ─────────────────────────────────────────
+    current_key_idx = iso_src_idx          # 当前持有资金的中间地址索引
+    next_key_idx = 1                       # intermediate 数组的下一个空闲槽位
     current_chain = chain
 
-    for hop in range(1, num_hops + 1):
-        next_key_idx = hop
-        next_addr = intermediate[next_key_idx]['address']
+    def _emit_send(to_idx, on_chain, purpose, hop_label):
+        """生成一笔同链 send 步骤"""
+        nonlocal current_key_idx
+        steps.append({
+            'idx': len(steps),
+            'type': 'send',
+            'chain': on_chain,
+            'from_key_idx': current_key_idx,
+            'to_address': intermediate[to_idx]['address'],
+            'amount': 'max',
+            'purpose': purpose,
+            'desc': f"🔀 跳转 {on_chain.upper()} {hop_label}"
+        })
+        current_key_idx = to_idx
 
-        if hop == cross_out_hop and cross_enabled:
-            # 出跨链：BSC → relay_chain
-            steps.append({
-                'idx': len(steps),
-                'type': 'bridge',
-                'from_chain': current_chain,
-                'to_chain': relay_chain,
-                'from_key_idx': current_key_idx,
-                'to_address': next_addr,
-                'amount': 'max',
-                'purpose': 'cross_out',
-                'desc': f"🌉 跨链出 {current_chain.upper()} → {relay_chain.upper()} (hop {hop})"
-            })
-            current_chain = relay_chain
-            current_key_idx = next_key_idx
-
-        elif hop == cross_back_hop and cross_enabled:
-            # 立刻回跨链：relay_chain → BSC（不在L2上做任何hop）
-            steps.append({
-                'idx': len(steps),
-                'type': 'bridge',
-                'from_chain': current_chain,
-                'to_chain': chain,
-                'from_key_idx': current_key_idx,
-                'to_address': next_addr,
-                'amount': 'max',
-                'purpose': 'cross_back',
-                'desc': f"🌉 跨链回 {current_chain.upper()} → {chain.upper()} (hop {hop})"
-            })
-            current_chain = chain
-            current_key_idx = next_key_idx
-
-        else:
-            # 同链跳转（全部在 BSC 上，不在L2上做hop）
-            steps.append({
-                'idx': len(steps),
-                'type': 'send',
-                'chain': current_chain,
-                'from_key_idx': current_key_idx,
-                'to_address': next_addr,
-                'amount': 'max',
-                'purpose': 'hop',
-                'desc': f"🔀 跳转 {current_chain.upper()} #{hop}"
-            })
-            current_key_idx = next_key_idx
-
-    # 确保最终回到原 chain（冗余保护）
-    if current_chain != chain:
-        next_key_idx = num_hops  # 复用最后一个地址
+    def _emit_bridge(to_idx, from_chain_name, to_chain_name, purpose, label):
+        """生成一笔跨链步骤"""
+        nonlocal current_key_idx, current_chain
         steps.append({
             'idx': len(steps),
             'type': 'bridge',
-            'from_chain': current_chain,
-            'to_chain': chain,
+            'from_chain': from_chain_name,
+            'to_chain': to_chain_name,
             'from_key_idx': current_key_idx,
-            'to_address': intermediate[next_key_idx]['address'],
+            'to_address': intermediate[to_idx]['address'],
             'amount': 'max',
-            'purpose': 'cross_back_final',
-            'desc': f"🌉 回到原链 {chain.upper()}"
+            'purpose': purpose,
+            'desc': f"🌉 {label} {from_chain_name.upper()} → {to_chain_name.upper()}"
         })
-        current_chain = chain
-        current_key_idx = next_key_idx  # ← 修复：更新 current_key_idx，否则后续步骤从空地址发送
+        current_key_idx = to_idx
+        current_chain = to_chain_name
 
-    # Step: 目标隔离 → 目标地址（current_key_idx 的地址 → intermediate[num_hops+1]，再 → to_address）
-    iso_tgt_idx = num_hops + 1
+    # 首段 BSC 跳转
+    for h in range(bsc_per_segment[0]):
+        _emit_send(next_key_idx, chain, 'hop', f"#bsc-pre-{h+1}")
+        next_key_idx += 1
+
+    # 跨链段
+    for seg_i in range(cross_count):
+        relay = relays_for_segments[seg_i]
+
+        # cross_out: BSC → relay
+        _emit_bridge(next_key_idx, chain, relay, 'cross_out', f"跨链出 #{seg_i+1}")
+        next_key_idx += 1
+
+        # relay 链上 3-5 跳同链，打散时间窗和地址直连关系
+        for h in range(relay_inner_hops):
+            _emit_send(next_key_idx, relay, 'relay_hop', f"#{relay}-{h+1}")
+            next_key_idx += 1
+
+        # cross_back: relay → BSC
+        _emit_bridge(next_key_idx, relay, chain, 'cross_back', f"跨链回 #{seg_i+1}")
+        next_key_idx += 1
+
+        # 跨链后的 BSC 段
+        seg_bsc_count = bsc_per_segment[seg_i + 1]
+        for h in range(seg_bsc_count):
+            _emit_send(next_key_idx, chain, 'hop', f"#bsc-mid-{seg_i+1}-{h+1}")
+            next_key_idx += 1
+
+    # 冗余保护：万一末态不在原链，强制桥回（理论上 cross_back 已经保证了）
+    if current_chain != chain:
+        _emit_bridge(next_key_idx, current_chain, chain, 'cross_back_final', "强制回链")
+        next_key_idx += 1
+
+    # 目标隔离入：当前 → 隔离地址
+    iso_tgt_idx = num_hops + 1   # intermediate 最后一个槽
     steps.append({
         'idx': len(steps),
         'type': 'send',
@@ -250,9 +299,15 @@ def build_plan(
             {'address': a['address'], 'private_key': a['private_key']}
             for a in intermediate
         ],
-        'relay_chain': relay_chain,
-        'cross_out_hop': cross_out_hop,
-        'cross_back_hop': cross_back_hop,
+        # 兼容字段：前端读 relay_chain 显示"经过 X 链"。多段时取第一段，没跨链时为 None
+        'relay_chain': relays_for_segments[0] if relays_for_segments else None,
+        # 多段跨链元信息：前端可选展示
+        'relay_chains': relays_for_segments,
+        'cross_count': cross_count if cross_enabled else 0,
+        'relay_inner_hops': relay_inner_hops if cross_enabled else 0,
+        # 兼容字段（保留以防旧前端版本读取）
+        'cross_out_hop': -1,
+        'cross_back_hop': -1,
         'steps': steps,
         'total_steps': len(steps)
     }

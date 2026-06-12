@@ -61,6 +61,10 @@ interface Plan {
   from_private_key: string;
   intermediate_keys: { address: string; private_key: string }[];
   relay_chain?: string;
+  // 多段跨链元信息（新版后端返回）：
+  relay_chains?: string[];     // 各段经过的 relay 链，如 ['polygon', 'arbitrum']
+  cross_count?: number;        // 跨链段数 0/1/2/3
+  relay_inner_hops?: number;   // 每段在 relay 链上的同链跳数
   steps: any[];
   total_steps: number;
 }
@@ -78,6 +82,7 @@ function purposeIcon(purpose?: string, type?: string): string {
     case "donation": return "💳";
     case "source_isolation": return "🔒";
     case "hop": return "🔀";
+    case "relay_hop": return "🔄";
     case "cross_out": return "🌉";
     case "cross_back": return "🌉";
     case "cross_back_final": return "🌉";
@@ -344,17 +349,33 @@ export default function StealthTransferPage() {
           localStorage.setItem(STORAGE_KEY, JSON.stringify({ plan: safeplan, stepIdx: 0 }));
         }
 
+        // 路径展示：优先用多段 relay_chains，回退到 relay_chain 单段
+        const relays = plan.relay_chains && plan.relay_chains.length > 0
+          ? plan.relay_chains
+          : (plan.relay_chain ? [plan.relay_chain] : []);
+        const hasCross = relays.length > 0;
+
         addLog(
           lang === "zh"
-            ? `✅ 路由规划完成：${plan.total_steps} 步，${plan.relay_chain ? `跨链经过 ${chainLabel(plan.relay_chain)}` : "单链"}`
-            : `✅ Plan ready: ${plan.total_steps} steps${plan.relay_chain ? `, cross-chain via ${chainLabel(plan.relay_chain)}` : ""}`,
+            ? `✅ 路由规划完成：${plan.total_steps} 步，${hasCross
+                ? `${relays.length} 次跨链（${relays.map(chainLabel).join(' / ')}），每段 relay 内 ${plan.relay_inner_hops || 0} 跳`
+                : "单链"}`
+            : `✅ Plan ready: ${plan.total_steps} steps${hasCross
+                ? `, ${relays.length}× cross-chain via ${relays.map(chainLabel).join(' / ')}, ${plan.relay_inner_hops || 0} hops on each relay`
+                : ""}`,
           "success"
         );
-        if (plan.relay_chain) {
+        if (hasCross) {
+          // 完整路径：BSC → relay1 → BSC → relay2 → BSC ...
+          const pathSegments = [chainLabel(chain)];
+          for (const r of relays) {
+            pathSegments.push(chainLabel(r));
+            pathSegments.push(chainLabel(chain));
+          }
           addLog(
             lang === "zh"
-              ? `🌉 跨链路径: ${chainLabel(chain)} → ${chainLabel(plan.relay_chain)} → ${chainLabel(chain)}`
-              : `🌉 Path: ${chainLabel(chain)} → ${chainLabel(plan.relay_chain)} → ${chainLabel(chain)}`,
+              ? `🌉 跨链路径: ${pathSegments.join(' → ')}`
+              : `🌉 Path: ${pathSegments.join(' → ')}`,
             "bridge"
           );
         }
@@ -723,7 +744,8 @@ export default function StealthTransferPage() {
                 >
                   <option value="bsc_testnet">BSC Testnet</option>
                   <option value="bsc">BSC Mainnet</option>
-                  <option value="eth">Ethereum</option>
+                  {/* Ethereum 暂未开放：链名/RPC/gas 估算尚未适配，启用前需要补 config.CHAINS、CHAIN_ID_MAP、gas_per_tx 等 */}
+                  {/* <option value="ethereum">Ethereum</option> */}
                 </select>
                 {chain === "bsc" && (
                   <p className="text-xs text-orange-600 mt-1">{tx.mainnetWarning}</p>

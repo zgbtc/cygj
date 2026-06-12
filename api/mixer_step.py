@@ -196,8 +196,9 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
     # cross_back/cross_back_final 后资金从 L2 桥回，可能需要 3-5 分钟才到账
     purpose = step.get('purpose', '')
     if step['amount'] == 'max':
-        # 跨链回程后的第一个 hop：等待时间延长到 5 分钟
-        wait_timeout = 300 if purpose == 'hop' else 35
+        # 跨链回程/出程后的第一个 hop：资金从桥到账可能要几分钟，等待延长到 5 分钟
+        # hop（BSC 回程后第一跳）和 relay_hop（cross_out 到 relay 后第一跳）都可能在等桥
+        wait_timeout = 300 if purpose in ('hop', 'relay_hop') else 35
         balance_wei, w3 = _wait_balance(w3, chain, from_address, timeout=wait_timeout)
     else:
         # 固定金额（如 donation）：也做一次轮询，防止上一步 tx 还没广播到此 RPC 节点
@@ -212,7 +213,8 @@ def execute_send(plan: dict, step: dict, step_idx: int = -1) -> dict:
 
     # 软退出检查：如果剩余余额不够撑完后续所有跳，直接发到最终 target
     # 只对 hop 类型的步骤做检查（source_isolation / donation 不做）
-    is_hop = purpose in ('hop', 'target_isolation_in', 'cross_out', 'cross_back')
+    # relay_hop 也参与（L2 上 gas 极低，理论上不会触发，作为兜底）
+    is_hop = purpose in ('hop', 'relay_hop', 'target_isolation_in', 'cross_out', 'cross_back')
     if is_hop and step_idx >= 0 and _should_early_exit(balance_wei, gas_cost_wei, plan, step_idx):
         final_target = Web3.to_checksum_address(plan['to_address'])
         amount_wei = balance_wei - gas_cost_wei - extra_buffer

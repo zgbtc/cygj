@@ -61,7 +61,66 @@ class HDWallet:
         """获取指定索引的账户"""
         accounts = self.generate_addresses(1, index)
         return accounts[0]
+
+    def generate_addresses_by_indices(self, indices: List[int]) -> List[Dict]:
+        """
+        按指定的索引列表派生地址（破坏顺序规律，反追踪友好）
+
+        Args:
+            indices: BIP44 派生索引列表，可以是任意非负整数（无需连续）
+
+        Returns:
+            按 indices 顺序返回的地址列表
+        """
+        addresses = []
+        for i in indices:
+            if i < 0:
+                raise ValueError(f"派生索引必须非负，收到 {i}")
+            account_path = f"m/44'/60'/0'/0/{i}"
+            account = Account.from_mnemonic(self.mnemonic, account_path=account_path)
+            addresses.append({
+                'index': i,
+                'address': account.address,
+                'private_key': account.key.hex(),
+                'path': account_path
+            })
+        return addresses
     
+    @staticmethod
+    def from_private_key_to_mnemonic(private_key: str) -> str:
+        """
+        从私钥确定性派生助记词（用于隐私转账的中间地址生成）
+
+        意义：
+        - 用户只输入私钥时，引擎之前会随机生成助记词，一旦中途失败，
+          资金会卡在用户没有助记词的派生地址里。
+        - 改为基于私钥的确定性派生：相同私钥 → 永远相同助记词 → 永远能恢复中间地址。
+        - 不影响安全性：能拿到该私钥的人本来就能控制源地址，恢复中间地址也不增加额外风险。
+
+        派生算法：
+        - entropy = sha256(private_key_bytes || domain_separator)[:16]
+        - mnemonic = BIP39(entropy)  → 12 词
+        """
+        import hashlib
+
+        # 兼容 0x 前缀和无前缀
+        pk_hex = private_key.lower()
+        if pk_hex.startswith('0x'):
+            pk_hex = pk_hex[2:]
+        try:
+            pk_bytes = bytes.fromhex(pk_hex)
+        except ValueError:
+            raise ValueError("私钥必须是 hex 字符串")
+        if len(pk_bytes) != 32:
+            raise ValueError(f"私钥长度必须为 32 字节，实际 {len(pk_bytes)}")
+
+        # 加 domain separator 防止与其他系统的派生碰撞
+        domain = b"cygj-stealth-transfer-mnemonic-v1"
+        seed = hashlib.sha256(pk_bytes + domain).digest()
+        entropy_16 = seed[:16]  # 16 字节 = BIP39 12 词
+
+        return Mnemonic('english').to_mnemonic(entropy_16)
+
     @staticmethod
     def from_mnemonic_to_private_key(mnemonic: str, index: int = 0) -> str:
         """
