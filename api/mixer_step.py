@@ -15,6 +15,7 @@ import sys
 import os
 import traceback
 import time
+import logging
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -523,49 +524,95 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
         raise Exception(f"LiFi 报价失败（重试3次）: {quote_error}")
 
     tx_req = quote['transactionRequest']
-    nonce = w3_from.eth.get_transaction_count(from_address, 'pending')
 
-    # gasPrice：用实时值的 1.5x，防止 L2 base fee 在 quote 和 send 之间涨价
-    try:
-        current_gas_price = int(w3_from.eth.gas_price * 1.5)
-    except Exception:
-        current_gas_price = w3_from.to_wei(5, 'gwei')
+    # L2 链 gas 处理：base fee 波动剧烈，用高倍数 + 重试
+    l2_chains = {'base', 'arbitrum', 'optimism', 'polygon'}
+    is_l2 = from_chain in l2_chains
 
-    tx = {
-        'from': from_address,
-        'to':   Web3.to_checksum_address(tx_req['to']),
-        'value': int(tx_req.get('value', 0), 16) if isinstance(tx_req.get('value'), str) else int(tx_req.get('value', 0)),
-        'data': tx_req.get('data', '0x'),
-        'gas':  int(tx_req.get('gasLimit', 500000), 16) if isinstance(tx_req.get('gasLimit'), str) else int(tx_req.get('gasLimit', 500000)),
-        'gasPrice': current_gas_price,
-        'nonce': nonce,
-        'chainId': CHAIN_ID_MAP[from_chain]
-    }
+    # 解析 LiFi 给的 gasLimit
+    lifi_gas_limit = (
+        int(tx_req.get('gasLimit', 500000), 16)
+        if isinstance(tx_req.get('gasLimit'), str)
+        else int(tx_req.get('gasLimit', 500000))
+    )
+    tx_value = (
+        int(tx_req.get('value', 0), 16)
+        if isinstance(tx_req.get('value'), str)
+        else int(tx_req.get('value', 0))
+    )
+    tx_to = Web3.to_checksum_address(tx_req['to'])
+    tx_data = tx_req.get('data', '0x')
 
-    # ── Final check：余额是否够付 value + 实际 gas ──────────
-    # LiFi 报价的 value 可能很接近 amount_wei，加上实际 gas 可能超出 balance
-    total_needed = tx['value'] + tx['gas'] * tx['gasPrice']
-    if total_needed > balance_wei:
-        shortage = total_needed - balance_wei
-        reason = f"LiFi quote 总成本 {total_needed} wei 超出余额 {balance_wei} wei，差额 {shortage} wei"
-        # cross_out 失败：资金在原链（BSC），直接发到目标地址（BSC 上）
-        # cross_back 失败：资金在 L2，发到 L2 上的目标地址（用户需手动桥回）
+    # ── 带 gas 自适应重试的发送循环 ──────────────────────────
+    # L2 base fee 在 quote 和 send 之间会涨，单次发送容易失败
+    # 每次重试都重新查实时 gas price 并逐步加价
+    tx_hash_hex = None
+    send_error = None
+    for send_attempt in range(4):
+        try:
+            base_gas_price = w3_from.eth.gas_price
+        except Exception:
+            base_gas_price = w3_from.to_wei(5, 'gwei')
+
+        # L2 用 2x 起步，每次重试再加 50%；L1 用 1.2x
+        if is_l2:
+            multiplier = 2.0 + send_attempt * 0.5   # 2.0, 2.5, 3.0, 3.5
+        else:
+            multiplier = 1.2 + send_attempt * 0.3   # 1.2, 1.5, 1.8, 2.1
+        gas_price = int(base_gas_price * multiplier)
+
+        gas_cost = lifi_gas_limit * gas_price
+        # Final check：余额够付 value + gas 吗？
+        if tx_value + gas_cost > balance_wei:
+            # 加价后超预算 → 降级
+            reason = (f"加价后 gas 超预算: value={tx_value} + gas={gas_cost} "
+                      f"> balance={balance_wei}（第 {send_attempt+1} 次）")
+            if purpose in ('cross_out', 'cross_back', 'cross_back_final'):
+                return _emergency_send_to_target(w3_from, from_chain, pk, from_address,
+                                                 balance_wei, plan, reason=reason)
+            raise ValueError(reason)
+
+        nonce = w3_from.eth.get_transaction_count(from_address, 'pending')
+        tx = {
+            'from': from_address,
+            'to': tx_to,
+            'value': tx_value,
+            'data': tx_data,
+            'gas': lifi_gas_limit,
+            'gasPrice': gas_price,
+            'nonce': nonce,
+            'chainId': CHAIN_ID_MAP[from_chain]
+        }
+
+        try:
+            signed = w3_from.eth.account.sign_transaction(tx, pk)
+            raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
+            tx_hash = w3_from.eth.send_raw_transaction(raw)
+            tx_hash_hex = tx_hash.hex()
+            break  # 发送成功
+        except Exception as e:
+            send_error = str(e)
+            msg = send_error.lower()
+            # gas 价格相关错误 → 重试（加价）
+            if any(k in msg for k in ['base fee', 'gas price', 'underpriced', 'fee per gas', 'intrinsic gas']):
+                logging.getLogger(__name__).warning(
+                    f"  ⚠️ 跨链发送重试 {send_attempt+1}/4 ({from_chain}): {send_error[:120]}"
+                )
+                time.sleep(2)
+                continue
+            # nonce 错误 → 重试
+            if 'nonce' in msg:
+                time.sleep(2)
+                continue
+            # 其他错误 → 直接降级
+            break
+
+    if tx_hash_hex is None:
+        # 4 次都失败 → 降级到 emergency_send
         if purpose in ('cross_out', 'cross_back', 'cross_back_final'):
             return _emergency_send_to_target(w3_from, from_chain, pk, from_address,
-                                             balance_wei, plan, reason=reason)
-        raise ValueError(reason)
-
-    try:
-        signed = w3_from.eth.account.sign_transaction(tx, pk)
-        raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
-        tx_hash = w3_from.eth.send_raw_transaction(raw)
-        tx_hash_hex = tx_hash.hex()
-    except Exception as e:
-        # 发交易失败：cross_out/cross_back 都降级到 emergency_send
-        if purpose in ('cross_out', 'cross_back', 'cross_back_final'):
-            return _emergency_send_to_target(w3_from, from_chain, pk, from_address,
-                                             balance_wei, plan, reason=f"发交易失败: {e}")
-        raise
+                                             balance_wei, plan, reason=f"跨链发送重试4次失败: {send_error}")
+        raise Exception(f"跨链发送失败（重试4次）: {send_error}")
 
     # 2. 等待源链上链确认（快，一般 3-5 秒）
     try:
