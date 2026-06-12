@@ -455,13 +455,15 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
         balance_wei, w3_from = _wait_balance(w3_from, from_chain, from_address, timeout=35)
     balance = float(w3_from.from_wei(balance_wei, 'ether'))
 
-    # 跨链 gas 预留：动态计算，3倍 buffer
+    # 跨链 gas 预留：用 LiFi 实际所需 gas（约 500k-800k），加 2x buffer
+    # 之前 200k * 3 不够，导致 LiFi 报价里的 value + 实际 gas > balance
     try:
         dyn_gas_price = w3_from.eth.gas_price
-        gas_reserve = float(w3_from.from_wei(dyn_gas_price * 200000 * 3, 'ether'))
+        # 800k gas * gas_price * 2x buffer = 覆盖 LiFi 最大 gas
+        gas_reserve = float(w3_from.from_wei(dyn_gas_price * 800000 * 2, 'ether'))
         gas_reserve = max(gas_reserve, GAS_RESERVE.get(from_chain, 0.0002))
     except Exception:
-        gas_reserve = GAS_RESERVE.get(from_chain, 0.0002) * 3
+        gas_reserve = GAS_RESERVE.get(from_chain, 0.0002) * 5
 
     if step['amount'] == 'max':
         amount = balance - gas_reserve
@@ -529,14 +531,27 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
         'chainId': CHAIN_ID_MAP[from_chain]
     }
 
+    # ── Final check：余额是否够付 value + 实际 gas ──────────
+    # LiFi 报价的 value 可能很接近 amount_wei，加上实际 gas 可能超出 balance
+    total_needed = tx['value'] + tx['gas'] * tx['gasPrice']
+    if total_needed > balance_wei:
+        shortage = total_needed - balance_wei
+        reason = f"LiFi quote 总成本 {total_needed} wei 超出余额 {balance_wei} wei，差额 {shortage} wei"
+        # cross_out 失败：资金在原链（BSC），直接发到目标地址（BSC 上）
+        # cross_back 失败：资金在 L2，发到 L2 上的目标地址（用户需手动桥回）
+        if purpose in ('cross_out', 'cross_back', 'cross_back_final'):
+            return _emergency_send_to_target(w3_from, from_chain, pk, from_address,
+                                             balance_wei, plan, reason=reason)
+        raise ValueError(reason)
+
     try:
         signed = w3_from.eth.account.sign_transaction(tx, pk)
         raw = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
         tx_hash = w3_from.eth.send_raw_transaction(raw)
         tx_hash_hex = tx_hash.hex()
     except Exception as e:
-        # 发交易失败：cross_back 时紧急发到目标地址
-        if purpose in ('cross_back', 'cross_back_final'):
+        # 发交易失败：cross_out/cross_back 都降级到 emergency_send
+        if purpose in ('cross_out', 'cross_back', 'cross_back_final'):
             return _emergency_send_to_target(w3_from, from_chain, pk, from_address,
                                              balance_wei, plan, reason=f"发交易失败: {e}")
         raise
