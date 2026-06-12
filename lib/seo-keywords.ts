@@ -159,7 +159,7 @@ export const longTailKeywords: string[] = [
   "anonymous transfer crypto",
   "cross-chain privacy",
   "on-chain privacy protection",
-  "untraceable transfer",
+  "private crypto transfer",
   "web3 identity protection",
   "IP protection crypto",
   "airdrop tool ethereum",

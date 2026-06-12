@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     // Privacy / stealth (avoid sensitive terms)
     "stealth transfer", "privacy transfer", "anonymous transfer crypto",
     "cross-chain privacy", "on-chain privacy protection", "crypto privacy tool",
-    "untraceable transfer", "web3 identity protection", "IP protection crypto",
+    "private crypto transfer", "web3 identity protection", "IP protection crypto",
     // DeFi tools
     "DeFi tools", "BSC tools", "ETH tools", "web3 tools", "on-chain tools",
     "HD wallet generator", "BIP44 wallet", "gas tracker", "token analyzer",

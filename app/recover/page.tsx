@@ -39,7 +39,7 @@ export default function RecoverPage() {
 
   const t = {
     en: {
-      title: "Recover Mixing Session",
+      title: "Recover Privacy Transfer Session",
       subtitle:
         "Enter your Plan ID to retrieve the mnemonic and intermediate address private keys.",
       planId: "Plan ID",
@@ -71,7 +71,7 @@ export default function RecoverPage() {
         "⚠️ Mnemonics and private keys are sensitive. Do not share this page or screenshots with anyone."
     },
     zh: {
-      title: "恢复混币会话",
+      title: "恢复隐私转账会话",
       subtitle: "输入 Plan ID 即可取回助记词和中间地址私钥。",
       planId: "Plan ID",
       planIdPh: "12 位十六进制字符",

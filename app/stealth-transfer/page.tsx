@@ -238,7 +238,7 @@ export default function StealthTransferPage() {
     // ── Fast 模式：走老的 /api/mixer 单次调用 ──────────────
     if (mode === "fast") {
       setPhase("running");
-      addLog("🚀 " + (lang === "zh" ? "开始快速混币..." : "Starting fast mix..."), "info");
+      addLog("🚀 " + (lang === "zh" ? "开始快速隐私转账..." : "Starting fast transfer..."), "info");
       try {
         const body: any = {
           chain, mode, input_type: inputType,

@@ -118,11 +118,11 @@ export default function KeywordsPage() {
               您可以一次性创建10-10000个钱包地址。
             </p>
             <p>
-              <strong className="text-[#d4af37]">隐私转账</strong>功能提供多跳跨链混币服务。
+              <strong className="text-[#d4af37]">隐私转账</strong>功能提供多跳跨链隐私转账服务。
               我们的<strong className="text-[#d4af37]">stealth transfer</strong>支持68+条链，
               通过<strong className="text-[#d4af37]">隐匿转账</strong>技术保护您的链上隐私。
               <strong className="text-[#d4af37]">privacy transfer</strong>采用多层隔离架构，
-              确保资金路径完全无法追踪。
+              大幅提升资金路径的隐私安全性，难以追溯。
             </p>
             <p>
               <strong className="text-[#d4af37]">批量转账</strong>工具支持一键发送Token到多个地址。
