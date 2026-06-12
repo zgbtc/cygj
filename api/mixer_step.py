@@ -66,12 +66,12 @@ def connect_chain(chain: str):
     if not chain_cfg:
         # relay chain RPCs
         fallback_rpcs = {
-            'polygon': ['https://polygon.llamarpc.com', 'https://polygon-rpc.com', 'https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com'],
-            'arbitrum': ['https://arbitrum.llamarpc.com', 'https://arb1.arbitrum.io/rpc', 'https://arbitrum.drpc.org', 'https://arbitrum-one.publicnode.com'],
-            'optimism': ['https://optimism.llamarpc.com', 'https://mainnet.optimism.io', 'https://optimism.drpc.org'],
-            'base': ['https://base.llamarpc.com', 'https://mainnet.base.org', 'https://base.drpc.org'],
-            'avalanche': ['https://api.avax.network/ext/bc/C/rpc', 'https://avalanche.drpc.org'],
-            'ethereum': ['https://eth.llamarpc.com', 'https://ethereum.publicnode.com', 'https://eth.drpc.org']
+            'polygon': ['https://polygon-bor-rpc.publicnode.com', 'https://polygon-rpc.com', 'https://polygon.llamarpc.com', 'https://1rpc.io/matic', 'https://polygon.meowrpc.com'],
+            'arbitrum': ['https://arbitrum-one.publicnode.com', 'https://arb1.arbitrum.io/rpc', 'https://arbitrum.llamarpc.com', 'https://1rpc.io/arb'],
+            'optimism': ['https://optimism.publicnode.com', 'https://mainnet.optimism.io', 'https://optimism.llamarpc.com', 'https://1rpc.io/op'],
+            'base': ['https://base-rpc.publicnode.com', 'https://mainnet.base.org', 'https://base.llamarpc.com', 'https://1rpc.io/base'],
+            'avalanche': ['https://avalanche-c-chain-rpc.publicnode.com', 'https://api.avax.network/ext/bc/C/rpc'],
+            'ethereum': ['https://ethereum-rpc.publicnode.com', 'https://eth.llamarpc.com', 'https://1rpc.io/eth']
         }
         rpc_urls = fallback_rpcs.get(chain, [])
     else:
@@ -465,20 +465,21 @@ def execute_bridge(plan: dict, step: dict, poll_timeout: int = 35) -> dict:
 
     # 跨链 gas 预留：L2（尤其 Polygon）gas price 在报价和发送之间会暴涨数倍，
     # 必须按"可能飙升后的 gas"预留，否则 value 锁太高 → value+gas>balance → 失败。
-    # 策略：
-    #   - 用当前 gas_price × 800k gasLimit × 高倍数（L2 用 6x 抗 spike）
-    #   - 再用余额百分比兜底（L2 至少留 8%，主网留 1%），双保险
+    # 策略：用当前 gas_price × 800k gasLimit × 高倍数（L2 用 10x 抗 spike）。
+    #   - 10x 足以扛住 gas 从报价到发送之间涨 10 倍（实测 Polygon 曾从 ~200→2178 gwei）
+    #   - 不用百分比兜底：百分比对大额会留下过多余额（如 160 MATIC 留 8% = 12 MATIC 浪费）
+    #   - 只用一个很小的绝对值兜底，防止 gas_price 查询为 0
     l2_set = {'polygon', 'arbitrum', 'optimism', 'base'}
     is_l2_from = from_chain in l2_set
     try:
         dyn_gas_price = w3_from.eth.gas_price
-        spike_multiplier = 6 if is_l2_from else 2
+        spike_multiplier = 10 if is_l2_from else 2
         gas_reserve = float(w3_from.from_wei(dyn_gas_price * 800000 * spike_multiplier, 'ether'))
-        # 百分比兜底：L2 gas spike 极端时按金额比例预留，避免 value 占满余额
-        pct_floor = balance * (0.08 if is_l2_from else 0.01)
+        # 小额百分比兜底（2%）仅作下限，避免极端低 gas_price 读数；大额不会因此浪费太多
+        pct_floor = balance * 0.02
         gas_reserve = max(gas_reserve, pct_floor, GAS_RESERVE.get(from_chain, 0.0002))
     except Exception:
-        gas_reserve = max(balance * 0.08, GAS_RESERVE.get(from_chain, 0.0002) * 5)
+        gas_reserve = max(balance * 0.03, GAS_RESERVE.get(from_chain, 0.0002) * 5)
 
     if step['amount'] == 'max':
         amount = balance - gas_reserve
